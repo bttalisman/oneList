@@ -1,66 +1,70 @@
-//
-//  ContentView.swift
-//  OneList
-//
-//  Created by Benjamin Talisman on 3/7/26.
-//
-
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var taskViewModel: MergeReviewViewModel
+    @State private var eventViewModel: EventMergeReviewViewModel
+
+    private let taskServices: [any TaskServiceProtocol]
+    private let eventServices: [any EventServiceProtocol]
+
+    init() {
+        let taskServices: [any TaskServiceProtocol] = [
+            AppleRemindersService(),
+            GoogleTasksService(),
+            MicrosoftToDoService(),
+        ]
+        let eventServices: [any EventServiceProtocol] = [
+            AppleCalendarService(),
+            GoogleCalendarService(),
+            MicrosoftCalendarService(),
+        ]
+        self.taskServices = taskServices
+        self.eventServices = eventServices
+        self._taskViewModel = State(initialValue: MergeReviewViewModel(services: taskServices))
+        self._eventViewModel = State(initialValue: EventMergeReviewViewModel(services: eventServices))
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
+        TabView {
+            Tab("Tasks", systemImage: "checklist") {
+                MergeReviewView(viewModel: taskViewModel)
             }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+
+            Tab("Events", systemImage: "calendar") {
+                EventMergeReviewView(viewModel: eventViewModel)
+            }
+
+            Tab("Accounts", systemImage: "person.crop.circle") {
+                NavigationStack {
+                    AccountsView(
+                        taskServices: taskServices,
+                        eventServices: eventServices,
+                        onReconnect: { provider in handleReconnect(provider) }
+                    )
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+        .onAppear {
+            if taskViewModel.linkStore == nil {
+                taskViewModel.linkStore = TaskLinkStore(modelContext: modelContext)
+            }
+            if eventViewModel.linkStore == nil {
+                eventViewModel.linkStore = EventLinkStore(modelContext: modelContext)
             }
         }
     }
-}
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    private func handleReconnect(_ provider: ServiceProvider) {
+        // Clear sessions so stale data doesn't persist
+        taskViewModel.session = nil
+        eventViewModel.session = nil
+
+        // Clear persistent links for this provider's services
+        let taskServiceTypes = [provider.taskServiceType]
+        let eventServiceTypes = [provider.eventServiceType]
+        taskViewModel.linkStore?.clearLinks(for: taskServiceTypes)
+        eventViewModel.linkStore?.clearLinks(for: eventServiceTypes)
+    }
 }

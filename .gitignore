@@ -1,0 +1,15 @@
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.heic
+
+# Xcode
+build/
+DerivedData/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store

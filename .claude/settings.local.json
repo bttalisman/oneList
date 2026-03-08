@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "WebSearch",
+      "Bash(swift:*)",
+      "Bash(sips:*)"
+    ]
+  }
+}

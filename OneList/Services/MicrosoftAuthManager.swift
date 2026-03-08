@@ -1,0 +1,279 @@
+import AuthenticationServices
+import CryptoKit
+import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.onelist", category: "MicrosoftAuth")
+
+/// Shared OAuth manager for all Microsoft services (To Do + Calendar).
+/// Performs a single OAuth flow with combined scopes and stores one set of tokens.
+final class MicrosoftAuthManager: NSObject {
+    static let shared = MicrosoftAuthManager()
+
+    private static let clientID = "5df4e8fd-a671-4f38-a3c9-2d9b7f652599"
+    private static let redirectURI = "msauth.btt.OneList://auth"
+    private static let callbackScheme = "msauth.btt.OneList"
+    private static let authorizeURL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+    private static let tokenURL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    private static let scope = "Tasks.ReadWrite Calendars.ReadWrite offline_access"
+
+    private static let accessTokenKey = "microsoft_unified_access_token"
+    private static let refreshTokenKey = "microsoft_unified_refresh_token"
+    private static let expirationKey = "microsoft_unified_token_expiration"
+
+    // MARK: - Token Storage
+
+    private(set) var accessToken: String? {
+        get { KeychainHelper.loadString(key: Self.accessTokenKey) }
+        set {
+            if let newValue {
+                KeychainHelper.saveString(newValue, for: Self.accessTokenKey)
+            } else {
+                KeychainHelper.delete(key: Self.accessTokenKey)
+            }
+        }
+    }
+
+    private var refreshToken: String? {
+        get { KeychainHelper.loadString(key: Self.refreshTokenKey) }
+        set {
+            if let newValue {
+                KeychainHelper.saveString(newValue, for: Self.refreshTokenKey)
+            } else {
+                KeychainHelper.delete(key: Self.refreshTokenKey)
+            }
+        }
+    }
+
+    private var tokenExpiration: Date? {
+        get {
+            guard let data = KeychainHelper.load(key: Self.expirationKey) else { return nil }
+            return try? JSONDecoder().decode(Date.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                KeychainHelper.save(data, for: Self.expirationKey)
+            } else {
+                KeychainHelper.delete(key: Self.expirationKey)
+            }
+        }
+    }
+
+    // MARK: - Connection Status
+
+    var isConnected: Bool {
+        get async {
+            guard Self.clientID != "YOUR_MICROSOFT_CLIENT_ID" else { return false }
+            if let token = accessToken, !token.isEmpty {
+                if let expiration = tokenExpiration, Date() >= expiration {
+                    if refreshToken != nil {
+                        return (try? await refreshAccessToken()) != nil
+                    }
+                    return false
+                }
+                return true
+            }
+            return false
+        }
+    }
+
+    // MARK: - Connect / Disconnect
+
+    @MainActor
+    func connect() async throws {
+        guard Self.clientID != "YOUR_MICROSOFT_CLIENT_ID" else {
+            throw MicrosoftAuthError.notConfigured
+        }
+
+        logger.info("Starting unified Microsoft OAuth2 flow (To Do + Calendar)...")
+
+        let codeVerifier = generateCodeVerifier()
+        let codeChallenge = generateCodeChallenge(from: codeVerifier)
+
+        var components = URLComponents(string: Self.authorizeURL)!
+        components.queryItems = [
+            URLQueryItem(name: "client_id", value: Self.clientID),
+            URLQueryItem(name: "redirect_uri", value: Self.redirectURI),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "scope", value: Self.scope),
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "prompt", value: "select_account"),
+        ]
+
+        let authURL = components.url!
+        logger.debug("Auth URL: \(authURL.absoluteString)")
+
+        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(
+                url: authURL,
+                callback: .customScheme(Self.callbackScheme)
+            ) { url, error in
+                if let error {
+                    logger.error("OAuth session error: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                } else if let url {
+                    logger.info("OAuth callback received")
+                    continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: MicrosoftAuthError.authFailed)
+                }
+            }
+            session.prefersEphemeralWebBrowserSession = false
+            session.presentationContextProvider = self
+            session.start()
+        }
+
+        guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "code" })?.value else {
+            logger.error("No auth code in callback URL")
+            throw MicrosoftAuthError.authFailed
+        }
+
+        logger.info("Got auth code, exchanging for tokens...")
+        try await exchangeCodeForTokens(code: code, codeVerifier: codeVerifier)
+        logger.info("Microsoft connected successfully (To Do + Calendar)")
+    }
+
+    func disconnect() {
+        logger.info("Disconnecting Microsoft — clearing all tokens")
+        accessToken = nil
+        refreshToken = nil
+        tokenExpiration = nil
+        // Also clear legacy separate token keys in case they exist
+        for key in ["microsoft_access_token", "microsoft_refresh_token", "microsoft_token_expiration",
+                     "microsoft_calendar_access_token", "microsoft_calendar_refresh_token", "microsoft_calendar_token_expiration"] {
+            KeychainHelper.delete(key: key)
+        }
+    }
+
+    // MARK: - Token Management
+
+    func validAccessToken() async throws -> String {
+        if let token = accessToken, let exp = tokenExpiration, Date() < exp {
+            return token
+        }
+        return try await refreshAccessToken()
+    }
+
+    @discardableResult
+    private func refreshAccessToken() async throws -> String {
+        guard let refreshToken else { throw MicrosoftAuthError.notAuthorized }
+
+        logger.info("Refreshing Microsoft access token...")
+        let body = [
+            "client_id": Self.clientID,
+            "refresh_token": refreshToken,
+            "grant_type": "refresh_token",
+            "scope": Self.scope,
+        ]
+
+        let tokenResponse: TokenResponse = try await postForm(url: Self.tokenURL, body: body)
+        accessToken = tokenResponse.accessToken
+        self.refreshToken = tokenResponse.refreshToken ?? refreshToken
+        tokenExpiration = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
+        logger.info("Token refreshed. Expires in \(tokenResponse.expiresIn)s")
+        return tokenResponse.accessToken
+    }
+
+    // MARK: - Token Exchange
+
+    private func exchangeCodeForTokens(code: String, codeVerifier: String) async throws {
+        let body = [
+            "client_id": Self.clientID,
+            "code": code,
+            "code_verifier": codeVerifier,
+            "grant_type": "authorization_code",
+            "redirect_uri": Self.redirectURI,
+            "scope": Self.scope,
+        ]
+
+        let tokenResponse: TokenResponse = try await postForm(url: Self.tokenURL, body: body)
+        accessToken = tokenResponse.accessToken
+        refreshToken = tokenResponse.refreshToken ?? refreshToken
+        tokenExpiration = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
+        logger.info("Tokens saved. Expires in \(tokenResponse.expiresIn)s")
+    }
+
+    // MARK: - Network
+
+    private func postForm<T: Decodable>(url: String, body: [String: String]) async throws -> T {
+        var request = URLRequest(url: URL(string: url)!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
+            .joined(separator: "&")
+            .data(using: .utf8)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            logger.error("Token request failed: \(body)")
+            throw MicrosoftAuthError.tokenExchangeFailed
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    // MARK: - PKCE
+
+    private func generateCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64URLEncoded
+    }
+
+    private func generateCodeChallenge(from verifier: String) -> String {
+        let hash = SHA256.hash(data: Data(verifier.utf8))
+        return Data(hash).base64URLEncoded
+    }
+}
+
+// MARK: - ASWebAuthenticationSession Presentation
+
+extension MicrosoftAuthManager: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        ASPresentationAnchor()
+    }
+}
+
+// MARK: - Errors
+
+enum MicrosoftAuthError: LocalizedError {
+    case authFailed
+    case notAuthorized
+    case notConfigured
+    case tokenExchangeFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .authFailed: "Microsoft authentication failed."
+        case .notAuthorized: "Not authorized. Please connect Microsoft first."
+        case .notConfigured: "Microsoft not configured. Set your Client ID."
+        case .tokenExchangeFailed: "Failed to exchange Microsoft auth code for tokens."
+        }
+    }
+}
+
+// MARK: - Response Model
+
+private struct TokenResponse: Decodable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresIn: Int
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
+    }
+}
+
+// MARK: - Base64URL
+
+private extension Data {
+    var base64URLEncoded: String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
