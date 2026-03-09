@@ -124,10 +124,16 @@ final class GoogleCalendarService: EventServiceProtocol {
     // MARK: - Mapping (Google -> Canonical)
 
     private func mapToCanonical(_ gEvent: GCalEvent, calendarId: String, calendarName: String) -> CanonicalEvent? {
-        logger.debug("Mapping Google event: id=\(gEvent.id) summary='\(gEvent.summary ?? "nil")' status=\(gEvent.status ?? "nil")")
+        logger.debug("Mapping Google event: id=\(gEvent.id) summary='\(gEvent.summary ?? "nil")' status=\(gEvent.status ?? "nil") eventType=\(gEvent.eventType ?? "nil")")
 
         if gEvent.status == "cancelled" {
             logger.debug("  Skipping cancelled event \(gEvent.id)")
+            return nil
+        }
+
+        // Skip non-default event types (focusTime = Google Tasks with dates, outOfOffice, etc.)
+        if let eventType = gEvent.eventType, eventType != "default" {
+            logger.debug("  Skipping non-default eventType '\(eventType)' for '\(gEvent.summary ?? gEvent.id)'")
             return nil
         }
 
@@ -208,7 +214,20 @@ final class GoogleCalendarService: EventServiceProtocol {
 
         if event.isAllDay {
             let startStr = Self.dateOnlyFormatter.string(from: event.startDate)
-            let endStr = Self.dateOnlyFormatter.string(from: event.endDate)
+            // Google uses exclusive end dates for all-day events (end = day after last day).
+            // Apple EventKit already uses exclusive end dates (midnight of day after last day),
+            // so only add a day if the end date is NOT already at midnight.
+            let endComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: event.endDate)
+            let isAlreadyExclusive = endComponents.hour == 0 && endComponents.minute == 0 && endComponents.second == 0
+            logger.info("All-day push '\(event.title)': startDate=\(event.startDate) endDate=\(event.endDate) endH=\(endComponents.hour ?? -1) endM=\(endComponents.minute ?? -1) endS=\(endComponents.second ?? -1) isAlreadyExclusive=\(isAlreadyExclusive)")
+            let exclusiveEnd: Date
+            if isAlreadyExclusive {
+                exclusiveEnd = event.endDate
+            } else {
+                exclusiveEnd = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: event.endDate))!
+            }
+            let endStr = Self.dateOnlyFormatter.string(from: exclusiveEnd)
+            logger.info("All-day push '\(event.title)': sending start=\(startStr) end=\(endStr) exclusiveEnd=\(exclusiveEnd)")
             body["start"] = ["date": startStr]
             body["end"] = ["date": endStr]
         } else {
@@ -336,6 +355,7 @@ struct GCalEvent: Decodable {
     let status: String?
     let created: String?
     let updated: String?
+    let eventType: String?
 }
 
 struct GCalDateTime: Decodable {

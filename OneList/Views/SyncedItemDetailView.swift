@@ -57,23 +57,13 @@ struct SyncedTaskDetailView: View {
                                 }
                             }
                             Spacer()
-                            if visibleServices.count > 1 {
-                                Button(role: .destructive) {
-                                    confirmingDelete = origin.service
-                                } label: {
-                                    Label("Remove", systemImage: "trash")
-                                        .font(.caption)
-                                }
+                            Button(role: .destructive) {
+                                confirmingDelete = origin.service
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                                    .font(.caption)
                             }
                         }
-                    }
-                }
-
-                if visibleServices.count <= 1 {
-                    Section {
-                        Text("This task only exists in one service and cannot be removed.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -102,18 +92,18 @@ struct SyncedTaskDetailView: View {
                 }
                 Button("Cancel", role: .cancel) { confirmingDelete = nil }
             } message: {
-                Text("This will delete the task from this service. It will remain in your other connected services.")
+                if visibleServices.count <= 1 {
+                    Text("This will delete the task from all services.")
+                } else {
+                    Text("This will delete the task from this service. It will remain in your other connected services.")
+                }
             }
             .animation(.default, value: removedServices)
         }
     }
 
     private func serviceColor(_ service: ServiceType) -> Color {
-        switch service {
-        case .appleReminders, .appleCalendar: .blue
-        case .googleTasks, .googleCalendar: .green
-        case .microsoftToDo, .microsoftCalendar: .orange
-        }
+        service.color
     }
 }
 
@@ -176,23 +166,13 @@ struct SyncedEventDetailView: View {
                                 }
                             }
                             Spacer()
-                            if visibleServices.count > 1 {
-                                Button(role: .destructive) {
-                                    confirmingDelete = origin.service
-                                } label: {
-                                    Label("Remove", systemImage: "trash")
-                                        .font(.caption)
-                                }
+                            Button(role: .destructive) {
+                                confirmingDelete = origin.service
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                                    .font(.caption)
                             }
                         }
-                    }
-                }
-
-                if visibleServices.count <= 1 {
-                    Section {
-                        Text("This event only exists in one service and cannot be removed.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -221,17 +201,17 @@ struct SyncedEventDetailView: View {
                 }
                 Button("Cancel", role: .cancel) { confirmingDelete = nil }
             } message: {
-                Text("This will delete the event from this service. It will remain in your other connected services.")
+                if visibleServices.count <= 1 {
+                    Text("This will delete the event from all services.")
+                } else {
+                    Text("This will delete the event from this service. It will remain in your other connected services.")
+                }
             }
             .animation(.default, value: removedServices)
         }
     }
 
     private func serviceColor(_ service: ServiceType) -> Color {
-        switch service {
-        case .appleReminders, .appleCalendar: .blue
-        case .googleTasks, .googleCalendar: .green
-        case .microsoftToDo, .microsoftCalendar: .orange
-        }
+        service.color
     }
 }

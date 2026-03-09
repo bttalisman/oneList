@@ -70,6 +70,7 @@ struct FieldConflict {
     let tasks: [CanonicalTask]
     let conflictingFields: [ConflictingField]
     let mergedResult: CanonicalTask
+    let missingFrom: [ServiceType]
 }
 
 struct ConflictingField {

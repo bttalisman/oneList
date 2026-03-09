@@ -14,7 +14,7 @@ struct AccountsView: View {
 
     var body: some View {
         List {
-            Section("Accounts") {
+            Section {
                 ForEach(ServiceProvider.allCases) { provider in
                     providerRow(provider)
                 }
@@ -37,16 +37,21 @@ struct AccountsView: View {
 
     @ViewBuilder
     private func providerRow(_ provider: ServiceProvider) -> some View {
+        let isConnected = connectionStatus[provider] == true
+        let statusText = isConnected ? "Connected" : "Not connected"
+        let subtitle = isConnected ? (providerEmails[provider] ?? statusText) : providerSubtitle(provider)
+
         HStack {
             Image(systemName: provider.iconSystemName)
                 .font(.title3)
                 .foregroundStyle(providerColor(provider))
                 .frame(width: 28)
                 .padding(.trailing, 6)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName)
                     .font(.body.weight(.medium))
-                if connectionStatus[provider] == true, let email = providerEmails[provider] {
+                if isConnected, let email = providerEmails[provider] {
                     Text(email)
                         .font(.caption)
                         .foregroundStyle(providerColor(provider))
@@ -56,24 +61,25 @@ struct AccountsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .accessibilityElement(children: .combine)
             Spacer()
-            if connectionStatus[provider] == true {
-                HStack(spacing: 12) {
-                    Label("Connected", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.green)
-                    if provider != .apple {
-                        Button {
-                            Task {
-                                await reconnectProvider(provider)
-                            }
-                        } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            if isConnected {
+                if provider != .apple {
+                    Button {
+                        Task {
+                            await reconnectProvider(provider)
                         }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                    .accessibilityLabel("Reconnect \(provider.displayName)")
                 }
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.green)
+                    .accessibilityLabel("Connected")
             } else {
                 Button("Connect") {
                     Task {
@@ -83,17 +89,16 @@ struct AccountsView: View {
                 .buttonStyle(.bordered)
                 .tint(providerColor(provider))
                 .controlSize(.small)
+                .accessibilityLabel("Connect \(provider.displayName)")
             }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(provider.displayName), \(subtitle), \(statusText)")
     }
 
     private func providerColor(_ provider: ServiceProvider) -> Color {
-        switch provider {
-        case .apple: .blue
-        case .google: .green
-        case .microsoft: .orange
-        }
+        provider.taskServiceType.color
     }
 
     private func providerSubtitle(_ provider: ServiceProvider) -> String {

@@ -211,8 +211,23 @@ final class MicrosoftCalendarService: EventServiceProtocol {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
             formatter.timeZone = tz
-            body["start"] = ["dateTime": "\(formatter.string(from: event.startDate))T00:00:00", "timeZone": tzId]
-            body["end"] = ["dateTime": "\(formatter.string(from: event.endDate))T00:00:00", "timeZone": tzId]
+            // Microsoft requires all-day events to span full days (end = day after last day).
+            // Apple EventKit already uses exclusive end dates (midnight of day after last day),
+            // so only add a day if the end date is NOT already at midnight.
+            let endComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: event.endDate)
+            let isAlreadyExclusive = endComponents.hour == 0 && endComponents.minute == 0 && endComponents.second == 0
+            logger.info("All-day push '\(event.title)': startDate=\(event.startDate) endDate=\(event.endDate) endH=\(endComponents.hour ?? -1) endM=\(endComponents.minute ?? -1) endS=\(endComponents.second ?? -1) isAlreadyExclusive=\(isAlreadyExclusive)")
+            let exclusiveEnd: Date
+            if isAlreadyExclusive {
+                exclusiveEnd = event.endDate
+            } else {
+                exclusiveEnd = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: event.endDate))!
+            }
+            let startPayload = "\(formatter.string(from: event.startDate))T00:00:00"
+            let endPayload = "\(formatter.string(from: exclusiveEnd))T00:00:00"
+            logger.info("All-day push '\(event.title)': sending start=\(startPayload) end=\(endPayload) tz=\(tzId)")
+            body["start"] = ["dateTime": startPayload, "timeZone": tzId]
+            body["end"] = ["dateTime": endPayload, "timeZone": tzId]
         } else {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"

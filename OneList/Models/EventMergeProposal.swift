@@ -52,6 +52,7 @@ struct EventFieldConflict {
     let events: [CanonicalEvent]
     let conflictingFields: [EventConflictingField]
     let mergedResult: CanonicalEvent
+    let missingFrom: [ServiceType]
 }
 
 struct EventConflictingField {

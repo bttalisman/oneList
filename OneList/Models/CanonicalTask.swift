@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Canonical Task
 
@@ -125,11 +126,11 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable {
     var iconSystemName: String {
         switch self {
         case .appleReminders: "checklist"
-        case .googleTasks: "checkmark.circle"
-        case .microsoftToDo: "checkmark.square"
+        case .googleTasks: "checklist"
+        case .microsoftToDo: "checklist"
         case .appleCalendar: "calendar"
-        case .googleCalendar: "calendar.badge.clock"
-        case .microsoftCalendar: "calendar.badge.checkmark"
+        case .googleCalendar: "calendar"
+        case .microsoftCalendar: "calendar"
         }
     }
 
@@ -142,6 +143,15 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable {
         case .appleCalendar: false
         case .googleCalendar: false
         case .microsoftCalendar: false
+        }
+    }
+
+    /// Canonical color for this service (by provider).
+    var color: Color {
+        switch self {
+        case .appleReminders, .appleCalendar: .blue
+        case .googleTasks, .googleCalendar: .orange
+        case .microsoftToDo, .microsoftCalendar: .green
         }
     }
 

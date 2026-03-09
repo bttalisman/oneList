@@ -27,6 +27,7 @@ struct ConflictDetailView: View {
         NavigationStack {
             List {
                 titleSection
+                missingFromSection
                 fieldPickerSections
                 previewSection
             }
@@ -54,6 +55,31 @@ struct ConflictDetailView: View {
             TextField("Title", text: $editableTask.title)
                 .font(.headline)
         }
+    }
+
+    // MARK: - Missing From
+
+    @ViewBuilder
+    private var missingFromSection: some View {
+        if case .fieldConflict(let conflict) = proposal.action, !conflict.missingFrom.isEmpty {
+            Section("Will Be Added To") {
+                ForEach(conflict.missingFrom) { service in
+                    HStack {
+                        Image(systemName: service.iconSystemName)
+                            .foregroundStyle(serviceColor(service))
+                            .frame(width: 24)
+                        Text(service.displayName)
+                        Spacer()
+                        Image(systemName: "plus.circle")
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+        }
+    }
+
+    private func serviceColor(_ service: ServiceType) -> Color {
+        service.color
     }
 
     // MARK: - Field Pickers

@@ -29,9 +29,11 @@ struct EventMergeEngine {
         var proposals: [EventMergeProposal] = []
         let allServices = Set(services)
 
-        for cluster in clusters {
+        for (i, cluster) in clusters.enumerated() {
             let presentIn = Set(cluster.eventsByService.keys)
             let missingFrom = allServices.subtracting(presentIn)
+            let title = cluster.allEvents.first?.title ?? "?"
+            logger.info("Cluster \(i) '\(title)': services=\(presentIn.map { $0.rawValue }) missingFrom=\(missingFrom.map { $0.rawValue }) confidence=\(String(describing: cluster.confidence)) linkID=\(cluster.linkID?.uuidString ?? "nil")")
 
             if cluster.eventsByService.count == 1 {
                 let (service, events) = cluster.eventsByService.first!
@@ -51,6 +53,7 @@ struct EventMergeEngine {
                     confidence: cluster.confidence,
                     missingFrom: Array(missingFrom)
                 )
+                logger.info("  → Proposal for '\(title)': \(String(describing: proposal.action).prefix(60)) decision=\(String(describing: proposal.decision))")
                 proposals.append(proposal)
             }
         }
@@ -122,12 +125,15 @@ struct EventMergeEngine {
         for (event, service) in allEvents {
             guard !assignedEventIDs.contains(event.id) else { continue }
 
+            logger.debug("Pass 2: matching '\(event.title)' from \(service.rawValue) (allDay=\(event.isAllDay) start=\(event.startDate) end=\(event.endDate))")
+
             var matchedClusterIndex: Int?
             var matchConfidence: EventMatchConfidence = .exact
 
             for (index, cluster) in clusters.enumerated() {
                 for existingEvent in cluster.allEvents {
                     if let confidence = compositeMatch(event, existingEvent) {
+                        logger.debug("  Composite match found: '\(event.title)' ~ '\(existingEvent.title)' confidence=\(String(describing: confidence))")
                         if matchedClusterIndex == nil || confidence > matchConfidence {
                             matchedClusterIndex = index
                             matchConfidence = confidence
@@ -140,8 +146,10 @@ struct EventMergeEngine {
             }
 
             if let clusterIndex = matchedClusterIndex {
+                logger.debug("  → Joined cluster \(clusterIndex) for '\(event.title)' with confidence=\(String(describing: matchConfidence))")
                 clusters[clusterIndex].add(event: event, service: service, confidence: matchConfidence)
             } else {
+                logger.debug("  → No match found, creating new cluster for '\(event.title)'")
                 var cluster = EventCluster(eventsByService: [:], confidence: .exact, linkID: nil)
                 cluster.add(event: event, service: service, confidence: .exact)
                 clusters.append(cluster)
@@ -169,11 +177,21 @@ struct EventMergeEngine {
         let durationB = b.endDate.timeIntervalSince(b.startDate)
         let durationDiff = abs(durationA - durationB)
 
-        // For all-day events, just match on title + same day
+        // For all-day events, match on title + same calendar date.
+        // Use UTC calendar because services store all-day starts differently:
+        // Apple uses midnight local (e.g., 07:00 UTC for Pacific), Microsoft uses 00:00 UTC.
         if a.isAllDay && b.isAllDay {
-            let sameDay = Calendar.current.isDate(a.startDate, inSameDayAs: b.startDate)
+            var utcCal = Calendar.current
+            utcCal.timeZone = TimeZone(identifier: "UTC")!
+            let dayA = utcCal.dateComponents([.year, .month, .day], from: a.startDate)
+            let dayB = utcCal.dateComponents([.year, .month, .day], from: b.startDate)
+            // Allow ±1 day difference to handle timezone edge cases
+            let sameDay = dayA == dayB
+            let adjacentDay = abs(utcCal.dateComponents([.day], from: a.startDate, to: b.startDate).day ?? 99) <= 1
             if sameDay && titlesMatch { return .exact }
+            if adjacentDay && titlesMatch { return .high }
             if sameDay && titlesFuzzy { return .medium }
+            if adjacentDay && titlesFuzzy { return .low }
             return nil
         }
 
@@ -282,7 +300,8 @@ struct EventMergeEngine {
                 action: .fieldConflict(EventFieldConflict(
                     events: events,
                     conflictingFields: allConflicts,
-                    mergedResult: merged
+                    mergedResult: merged,
+                    missingFrom: missingFrom
                 )),
                 decision: .pending
             )
@@ -380,23 +399,27 @@ struct EventMergeEngine {
             ))
         }
 
-        // End time (start time match is assumed since they're clustered)
-        let endTimes = eventPerService.map { $0.event.endDate }
-        let allSameEnd = endTimes.allSatisfy { abs($0.timeIntervalSince(endTimes[0])) < 60 }
-        if !allSameEnd {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .short
-            conflicts.append(EventConflictingField(
-                fieldName: "End Time",
-                entries: eventPerService.map { entry in
-                    EventConflictingField.FieldEntry(
-                        service: entry.service,
-                        value: formatter.string(from: entry.event.endDate),
-                        event: entry.event
-                    )
-                }
-            ))
+        // End time — skip for all-day events (services represent end differently)
+        let anyAllDay = eventPerService.contains { $0.event.isAllDay }
+        if !anyAllDay {
+            let endTimes = eventPerService.map { $0.event.endDate }
+            // Use 2-minute tolerance to handle Apple 11:59 PM vs Google 12:00 AM differences
+            let allSameEnd = endTimes.allSatisfy { abs($0.timeIntervalSince(endTimes[0])) < 120 }
+            if !allSameEnd {
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .short
+                conflicts.append(EventConflictingField(
+                    fieldName: "End Time",
+                    entries: eventPerService.map { entry in
+                        EventConflictingField.FieldEntry(
+                            service: entry.service,
+                            value: formatter.string(from: entry.event.endDate),
+                            event: entry.event
+                        )
+                    }
+                ))
+            }
         }
 
         return conflicts

@@ -243,7 +243,8 @@ struct MergeEngine {
                 action: .fieldConflict(FieldConflict(
                     tasks: tasks,
                     conflictingFields: allConflicts,
-                    mergedResult: merged
+                    mergedResult: merged,
+                    missingFrom: missingFrom
                 )),
                 decision: .pending
             )

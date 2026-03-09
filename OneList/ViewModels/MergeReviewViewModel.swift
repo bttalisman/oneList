@@ -65,6 +65,9 @@ final class MergeReviewViewModel {
                 guard connected else { continue }
                 let tasks = try await service.pullTasks()
                 logger.info("Pulled \(tasks.count) tasks from \(service.serviceType.displayName)")
+                for task in tasks {
+                    logger.debug("  Task: '\(task.title)' due=\(task.dueDate?.description ?? "nil") completed=\(task.isCompleted)")
+                }
                 tasksByService[service.serviceType] = tasks
             }
 
@@ -95,6 +98,17 @@ final class MergeReviewViewModel {
             }
 
             logger.info("Generated \(proposals.count) merge proposals")
+            for (i, p) in proposals.enumerated() {
+                let title = proposalTitle(p) ?? "?"
+                let actionType: String
+                switch p.action {
+                case .duplicate(let m): actionType = "duplicate(confidence=\(m.confidence))"
+                case .missingFrom(let m): actionType = "missingFrom(\(m.missingFrom.map(\.rawValue)))"
+                case .fieldConflict: actionType = "fieldConflict"
+                case .completionConflict: actionType = "completionConflict"
+                }
+                logger.info("  Proposal \(i): '\(title)' action=\(actionType) decision=\(String(describing: p.decision))")
+            }
             let connectedServices = Array(tasksByService.keys)
             session = MergeSession(proposals: proposals, servicesSynced: connectedServices)
         } catch {

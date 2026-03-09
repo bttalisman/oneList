@@ -113,6 +113,16 @@ final class EventMergeReviewViewModel {
             }
 
             logger.info("Generated \(proposals.count) event merge proposals")
+            for (i, p) in proposals.enumerated() {
+                let title = proposalTitle(p) ?? "?"
+                let actionType: String
+                switch p.action {
+                case .synced(let m): actionType = "synced(confidence=\(m.confidence))"
+                case .missingFrom(let m): actionType = "missingFrom(\(m.missingFrom.map(\.rawValue)))"
+                case .fieldConflict: actionType = "fieldConflict"
+                }
+                logger.info("  Proposal \(i): '\(title)' action=\(actionType) decision=\(String(describing: p.decision))")
+            }
             let connectedServices = Array(eventsByService.keys)
             session = EventMergeSession(proposals: proposals, servicesSynced: connectedServices)
         } catch {

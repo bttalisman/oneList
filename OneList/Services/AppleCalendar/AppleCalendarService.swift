@@ -68,7 +68,7 @@ final class AppleCalendarService: EventServiceProtocol {
 
         logger.info("Pulled \(events.count) events from Apple Calendar")
         for event in events {
-            logger.debug("Event: title='\(event.title ?? "nil")' calendar='\(event.calendar?.title ?? "nil")' allDay=\(event.isAllDay)")
+            logger.debug("Event: title='\(event.title ?? "nil")' calendar='\(event.calendar?.title ?? "nil")' allDay=\(event.isAllDay) start=\(event.startDate ?? Date()) end=\(event.endDate ?? Date())")
         }
 
         return events.map { mapToCanonical($0) }

@@ -5,6 +5,7 @@ struct MergeReviewView: View {
     @State private var selectedProposal: MergeProposal?
     @State private var selectedSyncedTask: CanonicalTask?
     @State private var showSkipped = false
+    @State private var showSynced = false
 
     var body: some View {
         NavigationStack {
@@ -133,10 +134,25 @@ struct MergeReviewView: View {
             statusSection(session)
 
             ForEach(session.proposals) { proposal in
-                if case .rejected = proposal.decision {
-                    // skip — shown in the collapsed section below
+                if isAutoSynced(proposal) || isRejected(proposal) {
+                    // shown in collapsed sections below
                 } else {
                     proposalRow(proposal)
+                }
+            }
+
+            let syncedProposals = session.proposals.filter { isAutoSynced($0) }
+            if !syncedProposals.isEmpty {
+                Section {
+                    DisclosureGroup(
+                        "Synced (\(syncedProposals.count))",
+                        isExpanded: $showSynced
+                    ) {
+                        ForEach(syncedProposals) { proposal in
+                            proposalRow(proposal)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -148,7 +164,7 @@ struct MergeReviewView: View {
                         isExpanded: $showSkipped
                     ) {
                         ForEach(session.proposals) { proposal in
-                            if case .rejected = proposal.decision {
+                            if isRejected(proposal) {
                                 proposalRow(proposal)
                                     .opacity(0.5)
                             }
@@ -162,18 +178,35 @@ struct MergeReviewView: View {
         .animation(.default, value: session.rejectedCount)
     }
 
+    private func isAutoSynced(_ proposal: MergeProposal) -> Bool {
+        if case .approved = proposal.decision,
+           case .duplicate(let match) = proposal.action,
+           match.confidence == .exact {
+            return true
+        }
+        return false
+    }
+
+    private func isRejected(_ proposal: MergeProposal) -> Bool {
+        if case .rejected = proposal.decision { return true }
+        return false
+    }
+
     // MARK: - Status Header
 
     private func statusSection(_ session: MergeSession) -> some View {
-        Section {
+        let syncedCount = session.proposals.filter { isAutoSynced($0) }.count
+        let actionableApproved = session.approvedCount - syncedCount
+
+        return Section {
             HStack {
-                StatBadge(count: session.proposals.count, label: "Total", color: .secondary)
-                Spacer()
-                StatBadge(count: session.approvedCount, label: "Approved", color: .green)
-                Spacer()
-                StatBadge(count: session.rejectedCount, label: "Skipped", color: .red)
+                StatBadge(count: syncedCount, label: "Synced", color: .blue)
                 Spacer()
                 StatBadge(count: session.pendingCount, label: "Pending", color: .orange)
+                Spacer()
+                StatBadge(count: actionableApproved, label: "Approved", color: .green)
+                Spacer()
+                StatBadge(count: session.rejectedCount, label: "Skipped", color: .red)
             }
             .padding(.vertical, 4)
 
@@ -190,6 +223,10 @@ struct MergeReviewView: View {
 
     @ViewBuilder
     private func proposalRow(_ proposal: MergeProposal) -> some View {
+        let title = proposalTitle(proposal)
+        let taskTitle = proposalTaskTitle(proposal)
+        let decision = proposalDecisionLabel(proposal.decision)
+
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 proposalHeader(proposal)
@@ -197,6 +234,9 @@ struct MergeReviewView: View {
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title): \(taskTitle), \(decision)")
+            .accessibilityHint(hasConflictDetails(proposal) ? "Double tap to resolve conflict" : "Double tap to view details. Swipe right to approve, swipe left to skip.")
             .onTapGesture {
                 if hasConflictDetails(proposal) {
                     selectedProposal = proposal
@@ -223,6 +263,24 @@ struct MergeReviewView: View {
         }
     }
 
+    private func proposalTaskTitle(_ proposal: MergeProposal) -> String {
+        switch proposal.action {
+        case .duplicate(let match): match.mergedResult.title
+        case .missingFrom(let missing): missing.task.title
+        case .completionConflict(let conflict): conflict.task.title
+        case .fieldConflict(let conflict): conflict.tasks.first?.title ?? ""
+        }
+    }
+
+    private func proposalDecisionLabel(_ decision: MergeProposal.Decision) -> String {
+        switch decision {
+        case .pending: "Pending"
+        case .approved: "Approved"
+        case .rejected: "Skipped"
+        case .modified: "Modified"
+        }
+    }
+
     private func hasConflictDetails(_ proposal: MergeProposal) -> Bool {
         switch proposal.action {
         case .fieldConflict, .completionConflict: true
@@ -235,6 +293,10 @@ struct MergeReviewView: View {
         switch proposal.action {
         case .duplicate(let match):
             return match.mergedResult
+        case .missingFrom(let missing):
+            return missing.task
+        case .completionConflict(let conflict):
+            return conflict.task
         default:
             return nil
         }
@@ -299,6 +361,9 @@ struct MergeReviewView: View {
                         }
                     }
                 }
+                Text("Tap to view")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
             }
 
         case .completionConflict(let conflict):
@@ -350,6 +415,7 @@ struct MergeReviewView: View {
         }
         return Image(systemName: name)
             .foregroundStyle(color)
+            .accessibilityHidden(true)
     }
 
     private func proposalTitle(_ proposal: MergeProposal) -> String {
@@ -363,11 +429,7 @@ struct MergeReviewView: View {
     }
 
     private func serviceColor(_ service: ServiceType) -> Color {
-        switch service {
-        case .appleReminders, .appleCalendar: .blue
-        case .googleTasks, .googleCalendar: .green
-        case .microsoftToDo, .microsoftCalendar: .orange
-        }
+        service.color
     }
 
     private func confidenceColor(_ confidence: MatchConfidence) -> Color {
@@ -388,6 +450,7 @@ struct MergeReviewView: View {
                 .frame(width: 22, height: 22)
                 .background(.quaternary, in: .circle)
                 .help(service.displayName)
+                .accessibilityLabel(service.displayName)
         }
     }
 
@@ -398,15 +461,19 @@ struct MergeReviewView: View {
             Text("Pending")
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.orange)
+                .accessibilityLabel("Status: Pending")
         case .approved:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(.green)
+                .accessibilityLabel("Status: Approved")
         case .rejected:
             Image(systemName: "xmark.circle.fill")
                 .foregroundStyle(.red)
+                .accessibilityLabel("Status: Skipped")
         case .modified:
             Image(systemName: "pencil.circle.fill")
                 .foregroundStyle(.blue)
+                .accessibilityLabel("Status: Modified")
         }
     }
 }
