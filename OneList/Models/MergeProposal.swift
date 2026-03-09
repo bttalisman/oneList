@@ -52,8 +52,8 @@ struct DuplicateMatch {
 
 struct MissingTask {
     let task: CanonicalTask
-    /// The service where the task exists.
-    let presentIn: ServiceType
+    /// The service(s) where the task exists.
+    let presentIn: [ServiceType]
     /// The service(s) where it's missing.
     let missingFrom: [ServiceType]
 }

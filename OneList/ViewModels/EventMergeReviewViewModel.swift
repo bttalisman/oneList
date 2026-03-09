@@ -27,6 +27,9 @@ final class EventMergeReviewViewModel {
         set { UserDefaults.standard.set(Array(newValue), forKey: Self.skippedKey) }
     }
 
+    /// Active pull task — used to deduplicate concurrent pulls and prevent cancellation.
+    private var activePull: Task<Void, Never>?
+
     init(services: [any EventServiceProtocol]) {
         self.services = services
     }
@@ -34,6 +37,22 @@ final class EventMergeReviewViewModel {
     // MARK: - Pull & Generate Proposals
 
     func pullAndPropose() async {
+        if let activePull {
+            logger.info("Event pull already in progress, waiting for it...")
+            await activePull.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performPull()
+        }
+        activePull = task
+        await task.value
+        activePull = nil
+    }
+
+    private func performPull() async {
         isLoading = true
         errorMessage = nil
         logger.info("Starting event pull & propose with \(self.services.count) registered services...")
@@ -63,16 +82,20 @@ final class EventMergeReviewViewModel {
                     eventsByService[service.serviceType] = events
                 } catch {
                     logger.error("  Failed to pull from \(service.serviceType.displayName): \(error.localizedDescription)")
-                    // Continue with other services instead of failing entirely
                 }
             }
 
             logger.info("Connected services with events: \(eventsByService.keys.map(\.displayName))")
 
             guard eventsByService.count >= 2 else {
-                let msg = "Connect at least two calendar services to start merging. (\(eventsByService.count) connected)"
-                logger.warning("\(msg)")
-                errorMessage = msg
+                logger.warning("Only \(eventsByService.count) calendar service(s) connected — need at least 2")
+                if eventsByService.count == 1 {
+                    let connectedServices = Array(eventsByService.keys)
+                    session = EventMergeSession(proposals: [], servicesSynced: connectedServices)
+                } else {
+                    session = nil
+                    errorMessage = "Connect at least two calendar services to start merging."
+                }
                 isLoading = false
                 return
             }
@@ -93,7 +116,7 @@ final class EventMergeReviewViewModel {
             let connectedServices = Array(eventsByService.keys)
             session = EventMergeSession(proposals: proposals, servicesSynced: connectedServices)
         } catch {
-            logger.error("Event pull failed: \(error.localizedDescription)")
+            logger.error("Event pull failed: \(error.localizedDescription) (type: \(type(of: error)))")
             errorMessage = error.localizedDescription
         }
 
@@ -140,10 +163,11 @@ final class EventMergeReviewViewModel {
 
     // MARK: - Push
 
-    func pushApproved() async {
+    func pushApproved(to providers: Set<ServiceProvider> = Set(ServiceProvider.allCases)) async {
         guard let session else { return }
         isLoading = true
-        logger.info("Pushing \(session.approvedCount) approved event proposals...")
+        let allowedServices = Set(providers.flatMap { $0.serviceTypes })
+        logger.info("Pushing \(session.approvedCount) approved event proposals to \(providers.map { $0.displayName })...")
 
         for proposal in session.proposals {
             switch proposal.decision {
@@ -151,9 +175,9 @@ final class EventMergeReviewViewModel {
                 if case .synced(let match) = proposal.action, match.confidence == .exact {
                     continue
                 }
-                await pushProposal(proposal)
+                await pushProposal(proposal, allowedServices: allowedServices)
             case .modified(let customEvent):
-                await pushEventToAllServices(customEvent)
+                await pushEventToServices(customEvent, allowedServices: allowedServices)
             default:
                 continue
             }
@@ -163,14 +187,14 @@ final class EventMergeReviewViewModel {
         await pullAndPropose()
     }
 
-    private func pushProposal(_ proposal: EventMergeProposal) async {
+    private func pushProposal(_ proposal: EventMergeProposal, allowedServices: Set<ServiceType>) async {
         switch proposal.action {
         case .synced(let match):
             logger.info("Pushing synced event merge: '\(match.mergedResult.title)'")
-            await pushEventToAllServices(match.mergedResult)
+            await pushEventToServices(match.mergedResult, allowedServices: allowedServices)
 
         case .missingFrom(let missing):
-            for targetService in missing.missingFrom {
+            for targetService in missing.missingFrom where allowedServices.contains(targetService) {
                 logger.info("Pushing '\(missing.event.title)' to \(targetService.displayName)")
                 if let service = services.first(where: { $0.serviceType == targetService }) {
                     do {
@@ -184,18 +208,49 @@ final class EventMergeReviewViewModel {
 
         case .fieldConflict(let conflict):
             logger.info("Pushing field conflict merge: '\(conflict.mergedResult.title)'")
-            await pushEventToAllServices(conflict.mergedResult)
+            await pushEventToServices(conflict.mergedResult, allowedServices: allowedServices)
         }
     }
 
-    private func pushEventToAllServices(_ event: CanonicalEvent) async {
-        for service in services {
+    private func pushEventToServices(_ event: CanonicalEvent, allowedServices: Set<ServiceType>) async {
+        for service in services where allowedServices.contains(service.serviceType) {
             do {
                 try await service.pushEvent(event)
                 logger.info("Pushed '\(event.title)' to \(service.serviceType.displayName)")
             } catch {
                 logger.error("Failed to push '\(event.title)' to \(service.serviceType.displayName): \(error.localizedDescription)")
             }
+        }
+    }
+
+    // MARK: - Delete from Service
+
+    func deleteEventFromService(serviceType: ServiceType, nativeID: String) async {
+        guard let service = services.first(where: { $0.serviceType == serviceType }) else {
+            logger.error("No service found for \(serviceType.displayName)")
+            return
+        }
+        do {
+            try await service.deleteEvent(nativeID: nativeID)
+            logger.info("Deleted event (nativeID=\(nativeID)) from \(serviceType.displayName)")
+
+            // Clear the stale nativeID from the link store
+            if let linkStore {
+                if let link = linkStore.findLink(nativeID: nativeID, service: serviceType) {
+                    logger.info("Clearing stale nativeID from event link '\(link.lastKnownTitle)' for \(serviceType.displayName)")
+                    switch serviceType {
+                    case .appleCalendar: link.appleNativeID = nil
+                    case .googleCalendar: link.googleNativeID = nil
+                    case .microsoftCalendar: link.microsoftNativeID = nil
+                    default: break
+                    }
+                    linkStore.save()
+                }
+            }
+
+        } catch {
+            logger.error("Failed to delete from \(serviceType.displayName): \(error.localizedDescription)")
+            errorMessage = "Failed to remove from \(serviceType.displayName): \(error.localizedDescription)"
         }
     }
 

@@ -8,6 +8,7 @@ struct AccountsView: View {
     let eventServices: [any EventServiceProtocol]
     var onReconnect: ((ServiceProvider) -> Void)?
     @State private var connectionStatus: [ServiceProvider: Bool] = [:]
+    @State private var providerEmails: [ServiceProvider: String] = [:]
     @State private var errorMessage: String?
     @State private var showingError = false
 
@@ -38,13 +39,22 @@ struct AccountsView: View {
     private func providerRow(_ provider: ServiceProvider) -> some View {
         HStack {
             Image(systemName: provider.iconSystemName)
-                .foregroundStyle(.blue)
-                .frame(width: 24)
-            VStack(alignment: .leading) {
+                .font(.title3)
+                .foregroundStyle(providerColor(provider))
+                .frame(width: 28)
+                .padding(.trailing, 6)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName)
-                Text(providerSubtitle(provider))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.body.weight(.medium))
+                if connectionStatus[provider] == true, let email = providerEmails[provider] {
+                    Text(email)
+                        .font(.caption)
+                        .foregroundStyle(providerColor(provider))
+                } else {
+                    Text(providerSubtitle(provider))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             if connectionStatus[provider] == true {
@@ -52,14 +62,16 @@ struct AccountsView: View {
                     Label("Connected", systemImage: "checkmark.circle.fill")
                         .labelStyle(.iconOnly)
                         .foregroundStyle(.green)
-                    Button {
-                        Task {
-                            await reconnectProvider(provider)
+                    if provider != .apple {
+                        Button {
+                            Task {
+                                await reconnectProvider(provider)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
             } else {
@@ -69,8 +81,18 @@ struct AccountsView: View {
                     }
                 }
                 .buttonStyle(.bordered)
+                .tint(providerColor(provider))
                 .controlSize(.small)
             }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func providerColor(_ provider: ServiceProvider) -> Color {
+        switch provider {
+        case .apple: .blue
+        case .google: .green
+        case .microsoft: .orange
         }
     }
 
@@ -87,7 +109,6 @@ struct AccountsView: View {
         do {
             switch provider {
             case .apple:
-                // Apple needs separate permission requests for Reminders and Calendar
                 if let taskService = taskServices.first(where: { $0.serviceType == .appleReminders }) {
                     try await taskService.connect()
                 }
@@ -95,10 +116,8 @@ struct AccountsView: View {
                     try await eventService.connect()
                 }
             case .google:
-                // Single OAuth flow via shared auth manager handles both
                 try await GoogleAuthManager.shared.connect()
             case .microsoft:
-                // Single OAuth flow via shared auth manager handles both
                 try await MicrosoftAuthManager.shared.connect()
             }
             logger.info("\(provider.displayName) connected successfully")
@@ -113,21 +132,17 @@ struct AccountsView: View {
     private func reconnectProvider(_ provider: ServiceProvider) async {
         logger.info("Reconnecting \(provider.displayName)...")
 
-        // Disconnect both services for this provider
         switch provider {
         case .apple:
-            taskServices.first(where: { $0.serviceType == .appleReminders })?.disconnect()
-            eventServices.first(where: { $0.serviceType == .appleCalendar })?.disconnect()
+            break // Apple permissions are system-managed, can't reconnect
         case .google:
             GoogleAuthManager.shared.disconnect()
         case .microsoft:
             MicrosoftAuthManager.shared.disconnect()
         }
 
-        // Notify parent to clear sessions and links
         onReconnect?(provider)
 
-        // Re-authenticate
         await connectProvider(provider)
     }
 
@@ -147,6 +162,26 @@ struct AccountsView: View {
             }
             logger.info("  \(provider.displayName): \(connected ? "connected" : "not connected")")
             connectionStatus[provider] = connected
+
+            // Update emails from auth managers (fetch if missing)
+            if connected {
+                switch provider {
+                case .apple:
+                    providerEmails[provider] = "System Account"
+                case .google:
+                    if GoogleAuthManager.shared.userEmail == nil {
+                        await GoogleAuthManager.shared.fetchUserEmail()
+                    }
+                    providerEmails[provider] = GoogleAuthManager.shared.userEmail ?? "Connected"
+                case .microsoft:
+                    if MicrosoftAuthManager.shared.userEmail == nil {
+                        await MicrosoftAuthManager.shared.fetchUserEmail()
+                    }
+                    providerEmails[provider] = MicrosoftAuthManager.shared.userEmail ?? "Connected"
+                }
+            } else {
+                providerEmails[provider] = nil
+            }
         }
     }
 }

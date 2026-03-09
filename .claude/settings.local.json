@@ -4,7 +4,9 @@
       "Bash(ls:*)",
       "WebSearch",
       "Bash(swift:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(python3:*)",
+      "Bash(cp:*)"
     ]
   }
 }

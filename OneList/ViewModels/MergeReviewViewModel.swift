@@ -23,15 +23,37 @@ final class MergeReviewViewModel {
         set { UserDefaults.standard.set(Array(newValue), forKey: Self.skippedKey) }
     }
 
+    /// Active pull task — used to deduplicate concurrent pulls and prevent cancellation.
+    private var activePull: Task<Void, Never>?
+
     init(services: [any TaskServiceProtocol]) {
         self.services = services
     }
 
     // MARK: - Pull & Generate Proposals
 
+    /// Entry point for pull-to-refresh and .task. Deduplicates concurrent calls
+    /// and runs in an unstructured Task so SwiftUI's .refreshable can't cancel
+    /// the network requests mid-flight.
     func pullAndPropose() async {
+        if let activePull {
+            logger.info("Pull already in progress, waiting for it...")
+            await activePull.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performPull()
+        }
+        activePull = task
+        await task.value
+        activePull = nil
+    }
+
+    private func performPull() async {
         isLoading = true
-        errorMessage = nil
+        errorMessage = nil  // Clear stale errors; keep session intact to avoid UI flash
         logger.info("Starting pull & propose...")
 
         do {
@@ -47,9 +69,14 @@ final class MergeReviewViewModel {
             }
 
             guard tasksByService.count >= 2 else {
-                let msg = "Connect at least two services to start merging. (\(tasksByService.count) connected)"
-                logger.warning("\(msg)")
-                errorMessage = msg
+                logger.warning("Only \(tasksByService.count) service(s) connected — need at least 2")
+                if tasksByService.count == 1 {
+                    let connectedServices = Array(tasksByService.keys)
+                    session = MergeSession(proposals: [], servicesSynced: connectedServices)
+                } else {
+                    session = nil
+                    errorMessage = "Connect at least two services to start merging."
+                }
                 isLoading = false
                 return
             }
@@ -71,7 +98,7 @@ final class MergeReviewViewModel {
             let connectedServices = Array(tasksByService.keys)
             session = MergeSession(proposals: proposals, servicesSynced: connectedServices)
         } catch {
-            logger.error("Pull failed: \(error.localizedDescription)")
+            logger.error("Pull failed: \(error.localizedDescription) (type: \(type(of: error)))")
             errorMessage = error.localizedDescription
         }
 
@@ -118,10 +145,11 @@ final class MergeReviewViewModel {
 
     // MARK: - Push
 
-    func pushApproved() async {
+    func pushApproved(to providers: Set<ServiceProvider> = Set(ServiceProvider.allCases)) async {
         guard let session else { return }
         isLoading = true
-        logger.info("Pushing \(session.approvedCount) approved proposals...")
+        let allowedServices = Set(providers.flatMap { $0.serviceTypes })
+        logger.info("Pushing \(session.approvedCount) approved proposals to \(providers.map { $0.displayName })...")
 
         for proposal in session.proposals {
             switch proposal.decision {
@@ -130,9 +158,9 @@ final class MergeReviewViewModel {
                 if case .duplicate(let match) = proposal.action, match.confidence == .exact {
                     continue
                 }
-                await pushProposal(proposal)
+                await pushProposal(proposal, allowedServices: allowedServices)
             case .modified(let customTask):
-                await pushTaskToAllServices(customTask)
+                await pushTaskToServices(customTask, allowedServices: allowedServices)
             default:
                 continue
             }
@@ -142,14 +170,14 @@ final class MergeReviewViewModel {
         await pullAndPropose()
     }
 
-    private func pushProposal(_ proposal: MergeProposal) async {
+    private func pushProposal(_ proposal: MergeProposal, allowedServices: Set<ServiceType>) async {
         switch proposal.action {
         case .duplicate(let match):
             logger.info("Pushing duplicate merge: '\(match.mergedResult.title)'")
-            await pushTaskToAllServices(match.mergedResult)
+            await pushTaskToServices(match.mergedResult, allowedServices: allowedServices)
 
         case .missingFrom(let missing):
-            for targetService in missing.missingFrom {
+            for targetService in missing.missingFrom where allowedServices.contains(targetService) {
                 logger.info("Pushing '\(missing.task.title)' to \(targetService.displayName)")
                 if let service = services.first(where: { $0.serviceType == targetService }) {
                     do {
@@ -165,7 +193,7 @@ final class MergeReviewViewModel {
             }
 
         case .completionConflict(let conflict):
-            for service in services {
+            for service in services where allowedServices.contains(service.serviceType) {
                 if let origin = conflict.task.serviceOrigins.first(where: { $0.service == service.serviceType }) {
                     do {
                         try await service.completeTask(nativeID: origin.nativeID)
@@ -178,18 +206,50 @@ final class MergeReviewViewModel {
 
         case .fieldConflict(let conflict):
             logger.info("Pushing field conflict merge: '\(conflict.mergedResult.title)'")
-            await pushTaskToAllServices(conflict.mergedResult)
+            await pushTaskToServices(conflict.mergedResult, allowedServices: allowedServices)
         }
     }
 
-    private func pushTaskToAllServices(_ task: CanonicalTask) async {
-        for service in services {
+    private func pushTaskToServices(_ task: CanonicalTask, allowedServices: Set<ServiceType>) async {
+        for service in services where allowedServices.contains(service.serviceType) {
             do {
                 try await service.pushTask(task)
                 logger.info("Pushed '\(task.title)' to \(service.serviceType.displayName)")
             } catch {
                 logger.error("Failed to push '\(task.title)' to \(service.serviceType.displayName): \(error.localizedDescription)")
             }
+        }
+    }
+
+    // MARK: - Delete from Service
+
+    func deleteTaskFromService(serviceType: ServiceType, nativeID: String) async {
+        guard let service = services.first(where: { $0.serviceType == serviceType }) else {
+            logger.error("No service found for \(serviceType.displayName)")
+            return
+        }
+        do {
+            try await service.deleteTask(nativeID: nativeID)
+            logger.info("Deleted task (nativeID=\(nativeID)) from \(serviceType.displayName)")
+
+            // Clear the stale nativeID from the link store so it doesn't cause
+            // mismatches on the next pull cycle
+            if let linkStore {
+                if let link = linkStore.findLink(nativeID: nativeID, service: serviceType) {
+                    logger.info("Clearing stale nativeID from link '\(link.lastKnownTitle)' for \(serviceType.displayName)")
+                    link.setNativeID("", for: serviceType)
+                    switch serviceType {
+                    case .appleReminders: link.appleNativeID = nil
+                    case .googleTasks: link.googleNativeID = nil
+                    case .microsoftToDo: link.microsoftNativeID = nil
+                    default: break
+                    }
+                    linkStore.save()
+                }
+            }
+        } catch {
+            logger.error("Failed to delete from \(serviceType.displayName): \(error.localizedDescription)")
+            errorMessage = "Failed to remove from \(serviceType.displayName): \(error.localizedDescription)"
         }
     }
 

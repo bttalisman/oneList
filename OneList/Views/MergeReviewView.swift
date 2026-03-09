@@ -3,6 +3,7 @@ import SwiftUI
 struct MergeReviewView: View {
     @Bindable var viewModel: MergeReviewViewModel
     @State private var selectedProposal: MergeProposal?
+    @State private var selectedSyncedTask: CanonicalTask?
     @State private var showSkipped = false
 
     var body: some View {
@@ -12,23 +13,31 @@ struct MergeReviewView: View {
                     ProgressView("Syncing...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView(
-                        "Something went wrong",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(error)
-                    )
+                    ScrollView {
+                        ContentUnavailableView(
+                            "Something went wrong",
+                            systemImage: "exclamationmark.triangle",
+                            description: Text(error)
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 400)
+                    }
                 } else if let session = viewModel.session {
                     if session.proposals.isEmpty {
-                        ContentUnavailableView(
-                            "All Synced",
-                            systemImage: "checkmark.circle",
-                            description: Text("Everything is in sync across your connected services.")
-                        )
+                        ScrollView {
+                            ContentUnavailableView(
+                                "All Synced",
+                                systemImage: "checkmark.circle",
+                                description: Text("Everything is in sync across your connected services.")
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 400)
+                        }
                     } else {
                         mergeList(session)
                     }
                 } else {
-                    emptyState
+                    ScrollView {
+                        emptyState
+                    }
                 }
             }
             .task {
@@ -54,17 +63,22 @@ struct MergeReviewView: View {
                     viewModel.resolveProposal(id: proposal.id, decision: decision)
                 }
             }
-            .confirmationDialog(
-                "Push \(viewModel.session?.pushableCount ?? 0) changes?",
-                isPresented: $viewModel.showingPushConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Push to All Services") {
-                    Task { await viewModel.pushApproved() }
+            .sheet(isPresented: $viewModel.showingPushConfirmation) {
+                PushOptionsView(
+                    changeCount: viewModel.session?.pushableCount ?? 0
+                ) { providers in
+                    Task { await viewModel.pushApproved(to: providers) }
                 }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This will update your connected services with the approved merge results.")
+            }
+            .sheet(item: $selectedSyncedTask, onDismiss: {
+                Task { await viewModel.pullAndPropose() }
+            }) { task in
+                SyncedTaskDetailView(
+                    task: task,
+                    services: task.serviceOrigins
+                ) { serviceType, nativeID in
+                    Task { await viewModel.deleteTaskFromService(serviceType: serviceType, nativeID: nativeID) }
+                }
             }
         }
     }
@@ -186,6 +200,8 @@ struct MergeReviewView: View {
             .onTapGesture {
                 if hasConflictDetails(proposal) {
                     selectedProposal = proposal
+                } else if let syncedTask = syncedTask(from: proposal) {
+                    selectedSyncedTask = syncedTask
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -212,6 +228,15 @@ struct MergeReviewView: View {
         case .fieldConflict, .completionConflict: true
         case .duplicate: false
         case .missingFrom: false
+        }
+    }
+
+    private func syncedTask(from proposal: MergeProposal) -> CanonicalTask? {
+        switch proposal.action {
+        case .duplicate(let match):
+            return match.mergedResult
+        default:
+            return nil
         }
     }
 
@@ -247,6 +272,9 @@ struct MergeReviewView: View {
                         .font(.caption)
                         .foregroundStyle(confidenceColor(match.confidence))
                 }
+                Text("Tap to manage")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
             }
 
         case .missingFrom(let missing):
@@ -257,7 +285,9 @@ struct MergeReviewView: View {
                     Text("In:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    serviceTag(missing.presentIn)
+                    ForEach(missing.presentIn) { service in
+                        serviceTag(service)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Missing from:")

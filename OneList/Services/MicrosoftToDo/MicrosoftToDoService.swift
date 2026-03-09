@@ -136,7 +136,7 @@ final class MicrosoftToDoService: TaskServiceProtocol {
 
         return CanonicalTask(
             title: task.title,
-            notes: task.body?.content,
+            notes: task.body.flatMap { Self.cleanBodyContent($0) },
             isCompleted: task.status == "completed",
             dueDate: dueDate,
             priority: priority,
@@ -190,6 +190,25 @@ final class MicrosoftToDoService: TaskServiceProtocol {
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = Calendar.current.timeZone
         return formatter.date(from: dateOnly)
+    }
+
+    // MARK: - HTML Stripping
+
+    private static func cleanBodyContent(_ body: MSTaskBody) -> String? {
+        guard let content = body.content, !content.isEmpty else { return nil }
+        if body.contentType?.lowercased() == "html" {
+            let stripped = content
+                .replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "&nbsp;", with: " ")
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&lt;", with: "<")
+                .replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&quot;", with: "\"")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return stripped.isEmpty ? nil : stripped
+        }
+        return content
     }
 
     // MARK: - Network Helpers

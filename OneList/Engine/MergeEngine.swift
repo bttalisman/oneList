@@ -33,6 +33,13 @@ struct MergeEngine {
         var proposals: [MergeProposal] = []
         let allServices = Set(services)
 
+        logger.info("Built \(clusters.count) clusters from \(allServices.map(\.displayName))")
+        for (i, cluster) in clusters.enumerated() {
+            let title = cluster.allTasks.first?.title ?? "?"
+            let svcs = cluster.tasksByService.keys.map(\.displayName).joined(separator: ", ")
+            logger.info("  Cluster \(i): '\(title)' in [\(svcs)] confidence=\(String(describing: cluster.confidence)) linkID=\(cluster.linkID?.uuidString ?? "none")")
+        }
+
         for cluster in clusters {
             let presentIn = Set(cluster.tasksByService.keys)
             let missingFrom = allServices.subtracting(presentIn)
@@ -43,7 +50,7 @@ struct MergeEngine {
                     id: UUID(),
                     action: .missingFrom(MissingTask(
                         task: tasks[0],
-                        presentIn: service,
+                        presentIn: [service],
                         missingFrom: Array(missingFrom)
                     )),
                     decision: .pending
@@ -90,7 +97,6 @@ struct MergeEngine {
     ) -> [TaskCluster] {
         var clusters: [TaskCluster] = []
         var assignedTaskIDs: Set<UUID> = []
-        // Map from TaskLink.id to cluster index for link-based grouping
         var linkToCluster: [UUID: Int] = [:]
 
         // Flatten all tasks with their service
@@ -101,20 +107,19 @@ struct MergeEngine {
             }
         }
 
+        // Pass 1: Build clusters from link-matched tasks first.
+        // This ensures link clusters exist before title matching runs,
+        // so newly-pushed tasks (with no link yet) can title-match to them.
         for (task, service) in allTasks {
             guard !assignedTaskIDs.contains(task.id) else { continue }
 
-            // First: try to find an existing link by native ID
             if let linkStore, let nativeID = task.serviceOrigins.first?.nativeID {
                 if let link = linkStore.findLink(nativeID: nativeID, service: service) {
                     if let clusterIdx = linkToCluster[link.id] {
-                        // Add to existing cluster
                         clusters[clusterIdx].add(task: task, service: service, confidence: .exact)
                         assignedTaskIDs.insert(task.id)
                         logger.debug("Linked '\(task.title)' to existing cluster via link '\(link.lastKnownTitle)'")
-                        continue
                     } else {
-                        // Start a new cluster from this link
                         var cluster = TaskCluster(tasksByService: [:], confidence: .exact, linkID: link.id)
                         cluster.add(task: task, service: service, confidence: .exact)
                         let idx = clusters.count
@@ -122,12 +127,15 @@ struct MergeEngine {
                         linkToCluster[link.id] = idx
                         assignedTaskIDs.insert(task.id)
                         logger.debug("Started cluster from link for '\(task.title)'")
-                        continue
                     }
                 }
             }
+        }
 
-            // Second: try to match by title against existing clusters
+        // Pass 2: Title-match remaining (unlinked) tasks against existing clusters.
+        for (task, service) in allTasks {
+            guard !assignedTaskIDs.contains(task.id) else { continue }
+
             var matchedClusterIndex: Int?
             var matchConfidence: MatchConfidence = .exact
 
@@ -154,8 +162,11 @@ struct MergeEngine {
             }
 
             if let clusterIndex = matchedClusterIndex {
+                let existingTitle = clusters[clusterIndex].allTasks.first?.title ?? "?"
+                logger.debug("Title-matched '\(task.title)' (\(service.displayName)) → cluster '\(existingTitle)' confidence=\(String(describing: matchConfidence))")
                 clusters[clusterIndex].add(task: task, service: service, confidence: matchConfidence)
             } else {
+                logger.debug("New cluster for '\(task.title)' (\(service.displayName)) — no link or title match")
                 var cluster = TaskCluster(tasksByService: [:], confidence: .exact, linkID: nil)
                 cluster.add(task: task, service: service, confidence: .exact)
                 clusters.append(cluster)
@@ -238,8 +249,23 @@ struct MergeEngine {
             )
         }
 
-        // Clean duplicate
+        // If synced across some services but missing from others, show as missing
         let merged = mergeAllTasks(tasks)
+        if !missingFrom.isEmpty {
+            let presentServices = tasks.compactMap { $0.serviceOrigins.first?.service }
+            let uniquePresent = presentServices.reduce(into: [ServiceType]()) { if !$0.contains($1) { $0.append($1) } }
+            return MergeProposal(
+                id: UUID(),
+                action: .missingFrom(MissingTask(
+                    task: merged,
+                    presentIn: uniquePresent,
+                    missingFrom: missingFrom
+                )),
+                decision: .pending
+            )
+        }
+
+        // Clean duplicate — synced across all services
         let decision: MergeProposal.Decision = confidence == .exact ? .approved : .pending
         return MergeProposal(
             id: UUID(),
@@ -427,8 +453,24 @@ struct MergeEngine {
             priority: max(newer.priority, older.priority),
             createdDate: earlierDate(taskA.createdDate, taskB.createdDate),
             lastModifiedDate: laterDate(taskA.lastModifiedDate, taskB.lastModifiedDate),
-            serviceOrigins: taskA.serviceOrigins + taskB.serviceOrigins
+            serviceOrigins: deduplicateOrigins(taskA.serviceOrigins + taskB.serviceOrigins)
         )
+    }
+
+    /// Keep only one origin per service (prefer the one with more recent sync date).
+    private func deduplicateOrigins(_ origins: [ServiceOrigin]) -> [ServiceOrigin] {
+        var seen: [ServiceType: ServiceOrigin] = [:]
+        for origin in origins {
+            if let existing = seen[origin.service] {
+                // Keep the one with the more recent sync date
+                if (origin.lastSyncedDate ?? .distantPast) > (existing.lastSyncedDate ?? .distantPast) {
+                    seen[origin.service] = origin
+                }
+            } else {
+                seen[origin.service] = origin
+            }
+        }
+        return Array(seen.values)
     }
 
     private func sameDayOrBothNil(_ a: Date?, _ b: Date?) -> Bool {

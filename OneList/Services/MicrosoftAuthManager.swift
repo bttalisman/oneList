@@ -15,11 +15,12 @@ final class MicrosoftAuthManager: NSObject {
     private static let callbackScheme = "msauth.btt.OneList"
     private static let authorizeURL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
     private static let tokenURL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-    private static let scope = "Tasks.ReadWrite Calendars.ReadWrite offline_access"
+    private static let scope = "Tasks.ReadWrite Calendars.ReadWrite User.Read offline_access"
 
     private static let accessTokenKey = "microsoft_unified_access_token"
     private static let refreshTokenKey = "microsoft_unified_refresh_token"
     private static let expirationKey = "microsoft_unified_token_expiration"
+    private static let userEmailKey = "microsoft_unified_user_email"
 
     // MARK: - Token Storage
 
@@ -55,6 +56,18 @@ final class MicrosoftAuthManager: NSObject {
                 KeychainHelper.save(data, for: Self.expirationKey)
             } else {
                 KeychainHelper.delete(key: Self.expirationKey)
+            }
+        }
+    }
+
+    /// The logged-in user's email, fetched after connect.
+    var userEmail: String? {
+        get { KeychainHelper.loadString(key: Self.userEmailKey) }
+        set {
+            if let newValue {
+                KeychainHelper.saveString(newValue, for: Self.userEmailKey)
+            } else {
+                KeychainHelper.delete(key: Self.userEmailKey)
             }
         }
     }
@@ -133,6 +146,9 @@ final class MicrosoftAuthManager: NSObject {
         logger.info("Got auth code, exchanging for tokens...")
         try await exchangeCodeForTokens(code: code, codeVerifier: codeVerifier)
         logger.info("Microsoft connected successfully (To Do + Calendar)")
+
+        // Fetch user info
+        await fetchUserEmail()
     }
 
     func disconnect() {
@@ -140,6 +156,7 @@ final class MicrosoftAuthManager: NSObject {
         accessToken = nil
         refreshToken = nil
         tokenExpiration = nil
+        userEmail = nil
         // Also clear legacy separate token keys in case they exist
         for key in ["microsoft_access_token", "microsoft_refresh_token", "microsoft_token_expiration",
                      "microsoft_calendar_access_token", "microsoft_calendar_refresh_token", "microsoft_calendar_token_expiration"] {
@@ -211,6 +228,32 @@ final class MicrosoftAuthManager: NSObject {
             throw MicrosoftAuthError.tokenExchangeFailed
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    // MARK: - User Info
+
+    func fetchUserEmail() async {
+        do {
+            let token = try await validAccessToken()
+            var request = URLRequest(url: URL(string: "https://graph.microsoft.com/v1.0/me")!)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: data, encoding: .utf8) ?? ""
+                logger.warning("Failed to fetch Microsoft user info: HTTP \(status) — \(body)")
+                return
+            }
+            struct UserInfo: Decodable {
+                let mail: String?
+                let userPrincipalName: String?
+            }
+            let info = try JSONDecoder().decode(UserInfo.self, from: data)
+            userEmail = info.mail ?? info.userPrincipalName
+            logger.info("Microsoft user: \(self.userEmail ?? "unknown")")
+        } catch {
+            logger.warning("Could not fetch Microsoft user info: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - PKCE

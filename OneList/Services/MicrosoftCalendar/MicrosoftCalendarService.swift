@@ -30,14 +30,25 @@ final class MicrosoftCalendarService: EventServiceProtocol {
         let endStr = Self.iso8601Formatter.string(from: endDate)
         logger.info("Pulling events from \(startStr) to \(endStr)")
 
-        let response: MSCalEventsResponse = try await apiGet(
-            path: "/calendarView?startDateTime=\(startStr)&endDateTime=\(endStr)&$top=500",
-            token: token
-        )
+        // Fetch calendars and filter to writable ones (excludes holidays, birthdays, etc.)
+        let allCals: MSCalCalendarsResponse = try await apiGet(path: "/calendars", token: token)
+        let writableCalendars = allCals.value.filter { $0.canEdit == true }
+        logger.info("Found \(writableCalendars.count) writable calendars (skipped \(allCals.value.count - writableCalendars.count) read-only)")
 
-        let events = response.value.compactMap { mapToCanonical($0) }
-        logger.info("Pulled \(events.count) events from Microsoft Calendar")
-        return events
+        var allEvents: [CanonicalEvent] = []
+
+        for calendar in writableCalendars {
+            let response: MSCalEventsResponse = try await apiGet(
+                path: "/calendars/\(calendar.id)/calendarView?startDateTime=\(startStr)&endDateTime=\(endStr)&$top=500",
+                token: token
+            )
+            let events = response.value.compactMap { mapToCanonical($0) }
+            logger.info("Pulled \(events.count) events from calendar '\(calendar.name ?? calendar.id)'")
+            allEvents.append(contentsOf: events)
+        }
+
+        logger.info("Total: \(allEvents.count) events from Microsoft Calendar")
+        return allEvents
     }
 
     // MARK: - Push Event
@@ -141,7 +152,7 @@ final class MicrosoftCalendarService: EventServiceProtocol {
 
         return CanonicalEvent(
             title: msEvent.subject ?? "(No title)",
-            notes: msEvent.body?.content,
+            notes: msEvent.body.flatMap { Self.cleanBodyContent($0) },
             startDate: startDate,
             endDate: endDate,
             isAllDay: isAllDay,
@@ -212,6 +223,25 @@ final class MicrosoftCalendarService: EventServiceProtocol {
         }
 
         return body
+    }
+
+    // MARK: - HTML Stripping
+
+    private static func cleanBodyContent(_ body: MSCalEventBody) -> String? {
+        guard let content = body.content, !content.isEmpty else { return nil }
+        if body.contentType?.lowercased() == "html" {
+            let stripped = content
+                .replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "&nbsp;", with: " ")
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&lt;", with: "<")
+                .replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&quot;", with: "\"")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return stripped.isEmpty ? nil : stripped
+        }
+        return content
     }
 
     // MARK: - Date Formatters
@@ -298,6 +328,7 @@ private struct MSCalCalendar: Decodable {
     let id: String
     let name: String?
     let isDefaultCalendar: Bool?
+    let canEdit: Bool?
 }
 
 private struct MSCalEventsResponse: Decodable {

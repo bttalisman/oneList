@@ -33,8 +33,13 @@ final class GoogleCalendarService: EventServiceProtocol {
         let calListResponse: GCalCalendarListResponse = try await apiGet(
             path: "/users/me/calendarList", token: token
         )
-        let calendars = calListResponse.items ?? []
-        logger.info("Found \(calendars.count) calendars")
+        let allCalendars = calListResponse.items ?? []
+        for cal in allCalendars {
+            logger.info("  Calendar '\(cal.summary ?? cal.id)' accessRole=\(cal.accessRole ?? "nil")")
+        }
+        // Only include calendars the user can write to (excludes holidays, birthdays, etc.)
+        let calendars = allCalendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
+        logger.info("Found \(calendars.count) writable calendars (skipped \(allCalendars.count - calendars.count) read-only)")
 
         var allEvents: [CanonicalEvent] = []
 
@@ -314,6 +319,7 @@ struct GCalCalendarListResponse: Decodable {
 struct GCalCalendar: Decodable {
     let id: String
     let summary: String?
+    let accessRole: String?
 }
 
 struct GCalEventsResponse: Decodable {

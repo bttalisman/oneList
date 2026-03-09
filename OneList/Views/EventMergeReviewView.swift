@@ -3,6 +3,7 @@ import SwiftUI
 struct EventMergeReviewView: View {
     @Bindable var viewModel: EventMergeReviewViewModel
     @State private var selectedProposal: EventMergeProposal?
+    @State private var selectedSyncedEvent: CanonicalEvent?
     @State private var showSkipped = false
 
     var body: some View {
@@ -12,23 +13,31 @@ struct EventMergeReviewView: View {
                     ProgressView("Syncing calendars...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView(
-                        "Something went wrong",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(error)
-                    )
+                    ScrollView {
+                        ContentUnavailableView(
+                            "Something went wrong",
+                            systemImage: "exclamationmark.triangle",
+                            description: Text(error)
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 400)
+                    }
                 } else if let session = viewModel.session {
                     if session.proposals.isEmpty {
-                        ContentUnavailableView(
-                            "All Synced",
-                            systemImage: "checkmark.circle",
-                            description: Text("Your calendar events are in sync across connected services.")
-                        )
+                        ScrollView {
+                            ContentUnavailableView(
+                                "All Synced",
+                                systemImage: "checkmark.circle",
+                                description: Text("Your calendar events are in sync across connected services.")
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 400)
+                        }
                     } else {
                         mergeList(session)
                     }
                 } else {
-                    eventEmptyState
+                    ScrollView {
+                        eventEmptyState
+                    }
                 }
             }
             .task {
@@ -54,17 +63,22 @@ struct EventMergeReviewView: View {
                     viewModel.resolveProposal(id: proposal.id, decision: decision)
                 }
             }
-            .confirmationDialog(
-                "Push \(viewModel.session?.pushableCount ?? 0) changes?",
-                isPresented: $viewModel.showingPushConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Push to All Services") {
-                    Task { await viewModel.pushApproved() }
+            .sheet(isPresented: $viewModel.showingPushConfirmation) {
+                PushOptionsView(
+                    changeCount: viewModel.session?.pushableCount ?? 0
+                ) { providers in
+                    Task { await viewModel.pushApproved(to: providers) }
                 }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This will update your connected calendar services with the approved merge results.")
+            }
+            .sheet(item: $selectedSyncedEvent, onDismiss: {
+                Task { await viewModel.pullAndPropose() }
+            }) { event in
+                SyncedEventDetailView(
+                    event: event,
+                    services: event.serviceOrigins
+                ) { serviceType, nativeID in
+                    Task { await viewModel.deleteEventFromService(serviceType: serviceType, nativeID: nativeID) }
+                }
             }
         }
     }
@@ -165,6 +179,8 @@ struct EventMergeReviewView: View {
             .onTapGesture {
                 if hasConflictDetails(proposal) {
                     selectedProposal = proposal
+                } else if let syncedEvent = syncedEvent(from: proposal) {
+                    selectedSyncedEvent = syncedEvent
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -191,6 +207,15 @@ struct EventMergeReviewView: View {
         case .fieldConflict: true
         case .synced: false
         case .missingFrom: false
+        }
+    }
+
+    private func syncedEvent(from proposal: EventMergeProposal) -> CanonicalEvent? {
+        switch proposal.action {
+        case .synced(let match):
+            return match.mergedResult
+        default:
+            return nil
         }
     }
 
@@ -227,6 +252,9 @@ struct EventMergeReviewView: View {
                         .font(.caption)
                         .foregroundStyle(confidenceColor(match.confidence))
                 }
+                Text("Tap to manage")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
             }
 
         case .missingFrom(let missing):
@@ -238,7 +266,9 @@ struct EventMergeReviewView: View {
                     Text("In:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    serviceTag(missing.presentIn)
+                    ForEach(missing.presentIn) { service in
+                        serviceTag(service)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Missing from:")

@@ -44,7 +44,7 @@ struct EventMatch {
 
 struct MissingEvent {
     let event: CanonicalEvent
-    let presentIn: ServiceType
+    let presentIn: [ServiceType]
     let missingFrom: [ServiceType]
 }
 

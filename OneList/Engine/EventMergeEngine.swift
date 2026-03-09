@@ -39,7 +39,7 @@ struct EventMergeEngine {
                     id: UUID(),
                     action: .missingFrom(MissingEvent(
                         event: events[0],
-                        presentIn: service,
+                        presentIn: [service],
                         missingFrom: Array(missingFrom)
                     )),
                     decision: .pending
@@ -95,17 +95,16 @@ struct EventMergeEngine {
             }
         }
 
+        // Pass 1: Build clusters from link-matched events first.
         for (event, service) in allEvents {
             guard !assignedEventIDs.contains(event.id) else { continue }
 
-            // First: try link-based matching
             if let linkStore, let nativeID = event.serviceOrigins.first?.nativeID {
                 if let link = linkStore.findLink(nativeID: nativeID, service: service) {
                     if let clusterIdx = linkToCluster[link.id] {
                         clusters[clusterIdx].add(event: event, service: service, confidence: .exact)
                         assignedEventIDs.insert(event.id)
                         logger.debug("Linked '\(event.title)' to existing cluster via link")
-                        continue
                     } else {
                         var cluster = EventCluster(eventsByService: [:], confidence: .exact, linkID: link.id)
                         cluster.add(event: event, service: service, confidence: .exact)
@@ -114,12 +113,15 @@ struct EventMergeEngine {
                         linkToCluster[link.id] = idx
                         assignedEventIDs.insert(event.id)
                         logger.debug("Started cluster from link for '\(event.title)'")
-                        continue
                     }
                 }
             }
+        }
 
-            // Second: composite-key matching (title + start time + duration)
+        // Pass 2: Composite-key match remaining (unlinked) events against existing clusters.
+        for (event, service) in allEvents {
+            guard !assignedEventIDs.contains(event.id) else { continue }
+
             var matchedClusterIndex: Int?
             var matchConfidence: EventMatchConfidence = .exact
 
@@ -286,8 +288,23 @@ struct EventMergeEngine {
             )
         }
 
-        // Clean synced
+        // If synced across some services but missing from others, show as missing
         let merged = mergeAllEvents(events)
+        if !missingFrom.isEmpty {
+            let presentServices = events.compactMap { $0.serviceOrigins.first?.service }
+            let uniquePresent = presentServices.reduce(into: [ServiceType]()) { if !$0.contains($1) { $0.append($1) } }
+            return EventMergeProposal(
+                id: UUID(),
+                action: .missingFrom(MissingEvent(
+                    event: merged,
+                    presentIn: uniquePresent,
+                    missingFrom: missingFrom
+                )),
+                decision: .pending
+            )
+        }
+
+        // Fully synced across all services
         let decision: EventMergeProposal.Decision = confidence == .exact ? .approved : .pending
         return EventMergeProposal(
             id: UUID(),
@@ -409,8 +426,23 @@ struct EventMergeEngine {
             timeZone: newer.timeZone ?? older.timeZone,
             createdDate: earlierDate(a.createdDate, b.createdDate),
             lastModifiedDate: laterDate(a.lastModifiedDate, b.lastModifiedDate),
-            serviceOrigins: a.serviceOrigins + b.serviceOrigins
+            serviceOrigins: deduplicateOrigins(a.serviceOrigins + b.serviceOrigins)
         )
+    }
+
+    /// Keep only one origin per service (prefer the one with more recent sync date).
+    private func deduplicateOrigins(_ origins: [ServiceOrigin]) -> [ServiceOrigin] {
+        var seen: [ServiceType: ServiceOrigin] = [:]
+        for origin in origins {
+            if let existing = seen[origin.service] {
+                if (origin.lastSyncedDate ?? .distantPast) > (existing.lastSyncedDate ?? .distantPast) {
+                    seen[origin.service] = origin
+                }
+            } else {
+                seen[origin.service] = origin
+            }
+        }
+        return Array(seen.values)
     }
 
     private func longerString(_ a: String?, _ b: String?) -> String? {
