@@ -11,6 +11,8 @@ final class EventMergeReviewViewModel {
     var isLoading = false
     var errorMessage: String?
     var showingPushConfirmation = false
+    var showPushSuccess = false
+    var showPaywall = false
 
     private let services: [any EventServiceProtocol]
     private let engine = EventMergeEngine()
@@ -37,6 +39,12 @@ final class EventMergeReviewViewModel {
     // MARK: - Pull & Generate Proposals
 
     func pullAndPropose() async {
+        let sub = SubscriptionManager.shared
+        guard sub.canSync else {
+            showPaywall = true
+            return
+        }
+
         if let activePull {
             logger.info("Event pull already in progress, waiting for it...")
             await activePull.value
@@ -125,6 +133,7 @@ final class EventMergeReviewViewModel {
             }
             let connectedServices = Array(eventsByService.keys)
             session = EventMergeSession(proposals: proposals, servicesSynced: connectedServices)
+            SubscriptionManager.shared.recordSync()
         } catch {
             logger.error("Event pull failed: \(error.localizedDescription) (type: \(type(of: error)))")
             errorMessage = error.localizedDescription
@@ -194,7 +203,11 @@ final class EventMergeReviewViewModel {
         }
 
         logger.info("Event push complete, re-pulling...")
+        let pushedSuccessfully = errorMessage == nil
         await pullAndPropose()
+        if pushedSuccessfully {
+            showPushSuccess = true
+        }
     }
 
     private func pushProposal(_ proposal: EventMergeProposal, allowedServices: Set<ServiceType>) async {

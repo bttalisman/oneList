@@ -50,15 +50,6 @@ struct EventMergeReviewView: View {
                 await viewModel.pullAndPropose()
             }
             .navigationTitle("Events")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if let session = viewModel.session, session.pushableCount > 0 {
-                        Button("Push Changes") {
-                            viewModel.showingPushConfirmation = true
-                        }
-                    }
-                }
-            }
             .sheet(item: $selectedProposal) { proposal in
                 EventConflictDetailView(proposal: proposal) { decision in
                     viewModel.resolveProposal(id: proposal.id, decision: decision)
@@ -70,6 +61,14 @@ struct EventMergeReviewView: View {
                 ) { providers in
                     Task { await viewModel.pushApproved(to: providers) }
                 }
+            }
+            .overlay {
+                if viewModel.showPushSuccess {
+                    ConfettiOverlay(isPresented: $viewModel.showPushSuccess)
+                }
+            }
+            .sheet(isPresented: $viewModel.showPaywall) {
+                PaywallView()
             }
             .sheet(item: $selectedSyncedEvent, onDismiss: {
                 Task { await viewModel.pullAndPropose() }
@@ -195,6 +194,43 @@ struct EventMergeReviewView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+
+            if session.pushableCount > 0 {
+                Button {
+                    viewModel.showingPushConfirmation = true
+                } label: {
+                    Label("Push \(session.pushableCount) Change\(session.pushableCount == 1 ? "" : "s")", systemImage: "arrow.up.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityLabel("Push \(session.pushableCount) changes to connected services")
+            }
+
+            trialBanner
+        }
+    }
+
+    @ViewBuilder
+    private var trialBanner: some View {
+        let sub = SubscriptionManager.shared
+        if !sub.isPro {
+            Button {
+                viewModel.showPaywall = true
+            } label: {
+                HStack {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.purple)
+                    Text("\(sub.freeTrialRemaining) free sync\(sub.freeTrialRemaining == 1 ? "" : "s") remaining")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Upgrade")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.purple)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -207,10 +243,7 @@ struct EventMergeReviewView: View {
         let decision = proposalDecisionLabel(proposal.decision)
 
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                proposalHeader(proposal)
-                proposalDetail(proposal)
-            }
+            proposalContent(proposal)
             .padding(.vertical, 4)
             .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
@@ -224,20 +257,24 @@ struct EventMergeReviewView: View {
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button {
-                    viewModel.approveProposal(id: proposal.id)
-                } label: {
-                    Label("Approve", systemImage: "checkmark")
+                if !isAutoSynced(proposal) {
+                    Button {
+                        viewModel.approveProposal(id: proposal.id)
+                    } label: {
+                        Label("Approve", systemImage: "checkmark")
+                    }
+                    .tint(.green)
                 }
-                .tint(.green)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                Button {
-                    viewModel.rejectProposal(id: proposal.id)
-                } label: {
-                    Label("Skip", systemImage: "xmark")
+                if !isAutoSynced(proposal) {
+                    Button {
+                        viewModel.rejectProposal(id: proposal.id)
+                    } label: {
+                        Label("Skip", systemImage: "xmark")
+                    }
+                    .tint(.red)
                 }
-                .tint(.red)
             }
         }
     }
@@ -279,23 +316,16 @@ struct EventMergeReviewView: View {
     }
 
     @ViewBuilder
-    private func proposalHeader(_ proposal: EventMergeProposal) -> some View {
-        HStack {
-            proposalIcon(proposal)
-            Text(proposalTitle(proposal))
-                .font(.subheadline.weight(.medium))
-            Spacer()
-            decisionBadge(proposal.decision)
-        }
-    }
-
-    @ViewBuilder
-    private func proposalDetail(_ proposal: EventMergeProposal) -> some View {
+    private func proposalContent(_ proposal: EventMergeProposal) -> some View {
         switch proposal.action {
         case .synced(let match):
             VStack(alignment: .leading, spacing: 4) {
-                Text(match.events.first?.title ?? "")
-                    .font(.body)
+                HStack {
+                    Text(match.events.first?.title ?? "")
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 eventTimeLabel(match.mergedResult)
                 HStack(spacing: 4) {
                     let uniqueServices = match.mergedResult.serviceOrigins
@@ -311,15 +341,16 @@ struct EventMergeReviewView: View {
                         .font(.caption)
                         .foregroundStyle(confidenceColor(match.confidence))
                 }
-                Text("Tap to manage")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
             }
 
         case .missingFrom(let missing):
-            VStack(alignment: .leading, spacing: 6) {
-                Text(missing.event.title.isEmpty ? "(untitled)" : missing.event.title)
-                    .font(.body)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(missing.event.title.isEmpty ? "(untitled)" : missing.event.title)
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 eventTimeLabel(missing.event)
                 HStack(spacing: 4) {
                     Text("In:")
@@ -328,44 +359,39 @@ struct EventMergeReviewView: View {
                     ForEach(missing.presentIn) { service in
                         serviceTag(service)
                     }
-                }
-                VStack(alignment: .leading, spacing: 4) {
                     Text("Missing from:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 4) {
-                        ForEach(missing.missingFrom) { service in
-                            serviceTag(service)
-                        }
+                    ForEach(missing.missingFrom) { service in
+                        serviceTag(service)
                     }
                 }
-                Text("Tap to view")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
             }
 
         case .fieldConflict(let conflict):
             VStack(alignment: .leading, spacing: 4) {
-                Text(conflict.events.first?.title ?? "")
-                    .font(.body)
+                HStack {
+                    Text(conflict.events.first?.title ?? "")
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 if let first = conflict.events.first {
                     eventTimeLabel(first)
                 }
                 ForEach(conflict.conflictingFields, id: \.fieldName) { field in
-                    VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
                         Text(field.fieldName)
                             .font(.caption.weight(.medium))
-                        HStack(spacing: 4) {
-                            ForEach(Array(field.entries.enumerated()), id: \.offset) { index, entry in
-                                if index > 0 {
-                                    Text("vs")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Text(entry.value)
+                        ForEach(Array(field.entries.enumerated()), id: \.offset) { index, entry in
+                            if index > 0 {
+                                Text("vs")
                                     .font(.caption)
-                                    .foregroundStyle(serviceColor(entry.service))
+                                    .foregroundStyle(.secondary)
                             }
+                            Text(entry.value)
+                                .font(.caption)
+                                .foregroundStyle(serviceColor(entry.service))
                         }
                     }
                 }
@@ -389,17 +415,6 @@ struct EventMergeReviewView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func proposalIcon(_ proposal: EventMergeProposal) -> some View {
-        let (name, color): (String, Color) = switch proposal.action {
-        case .synced: ("checkmark.seal", .blue)
-        case .missingFrom: ("plus.circle", .green)
-        case .fieldConflict: ("arrow.left.arrow.right", .purple)
-        }
-        return Image(systemName: name)
-            .foregroundStyle(color)
-            .accessibilityHidden(true)
     }
 
     private func proposalTitle(_ proposal: EventMergeProposal) -> String {

@@ -49,16 +49,7 @@ struct MergeReviewView: View {
             .refreshable {
                 await viewModel.pullAndPropose()
             }
-            .navigationTitle("OneList")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if let session = viewModel.session, session.pushableCount > 0 {
-                        Button("Push Changes") {
-                            viewModel.showingPushConfirmation = true
-                        }
-                    }
-                }
-            }
+            .navigationTitle("Tasks")
             .sheet(item: $selectedProposal) { proposal in
                 ConflictDetailView(proposal: proposal) { decision in
                     viewModel.resolveProposal(id: proposal.id, decision: decision)
@@ -70,6 +61,14 @@ struct MergeReviewView: View {
                 ) { providers in
                     Task { await viewModel.pushApproved(to: providers) }
                 }
+            }
+            .overlay {
+                if viewModel.showPushSuccess {
+                    ConfettiOverlay(isPresented: $viewModel.showPushSuccess)
+                }
+            }
+            .sheet(isPresented: $viewModel.showPaywall) {
+                PaywallView()
             }
             .sheet(item: $selectedSyncedTask, onDismiss: {
                 Task { await viewModel.pullAndPropose() }
@@ -216,6 +215,43 @@ struct MergeReviewView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+
+            if session.pushableCount > 0 {
+                Button {
+                    viewModel.showingPushConfirmation = true
+                } label: {
+                    Label("Push \(session.pushableCount) Change\(session.pushableCount == 1 ? "" : "s")", systemImage: "arrow.up.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityLabel("Push \(session.pushableCount) changes to connected services")
+            }
+
+            trialBanner
+        }
+    }
+
+    @ViewBuilder
+    private var trialBanner: some View {
+        let sub = SubscriptionManager.shared
+        if !sub.isPro {
+            Button {
+                viewModel.showPaywall = true
+            } label: {
+                HStack {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.purple)
+                    Text("\(sub.freeTrialRemaining) free sync\(sub.freeTrialRemaining == 1 ? "" : "s") remaining")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Upgrade")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.purple)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -228,10 +264,7 @@ struct MergeReviewView: View {
         let decision = proposalDecisionLabel(proposal.decision)
 
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                proposalHeader(proposal)
-                proposalDetail(proposal)
-            }
+            proposalContent(proposal)
             .padding(.vertical, 4)
             .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
@@ -245,20 +278,24 @@ struct MergeReviewView: View {
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button {
-                    viewModel.approveProposal(id: proposal.id)
-                } label: {
-                    Label("Approve", systemImage: "checkmark")
+                if !isAutoSynced(proposal) {
+                    Button {
+                        viewModel.approveProposal(id: proposal.id)
+                    } label: {
+                        Label("Approve", systemImage: "checkmark")
+                    }
+                    .tint(.green)
                 }
-                .tint(.green)
             }
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                Button {
-                    viewModel.rejectProposal(id: proposal.id)
-                } label: {
-                    Label("Skip", systemImage: "xmark")
+                if !isAutoSynced(proposal) {
+                    Button {
+                        viewModel.rejectProposal(id: proposal.id)
+                    } label: {
+                        Label("Skip", systemImage: "xmark")
+                    }
+                    .tint(.red)
                 }
-                .tint(.red)
             }
         }
     }
@@ -303,23 +340,16 @@ struct MergeReviewView: View {
     }
 
     @ViewBuilder
-    private func proposalHeader(_ proposal: MergeProposal) -> some View {
-        HStack {
-            proposalIcon(proposal)
-            Text(proposalTitle(proposal))
-                .font(.subheadline.weight(.medium))
-            Spacer()
-            decisionBadge(proposal.decision)
-        }
-    }
-
-    @ViewBuilder
-    private func proposalDetail(_ proposal: MergeProposal) -> some View {
+    private func proposalContent(_ proposal: MergeProposal) -> some View {
         switch proposal.action {
         case .duplicate(let match):
             VStack(alignment: .leading, spacing: 4) {
-                Text(match.taskA.title)
-                    .font(.body)
+                HStack {
+                    Text(match.taskA.title)
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 HStack(spacing: 4) {
                     let uniqueServices = match.mergedResult.serviceOrigins
                         .map(\.service)
@@ -334,15 +364,16 @@ struct MergeReviewView: View {
                         .font(.caption)
                         .foregroundStyle(confidenceColor(match.confidence))
                 }
-                Text("Tap to manage")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
             }
 
         case .missingFrom(let missing):
-            VStack(alignment: .leading, spacing: 6) {
-                Text(missing.task.title.isEmpty ? "(untitled)" : missing.task.title)
-                    .font(.body)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(missing.task.title.isEmpty ? "(untitled)" : missing.task.title)
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 HStack(spacing: 4) {
                     Text("In:")
                         .font(.caption)
@@ -350,26 +381,23 @@ struct MergeReviewView: View {
                     ForEach(missing.presentIn) { service in
                         serviceTag(service)
                     }
-                }
-                VStack(alignment: .leading, spacing: 4) {
                     Text("Missing from:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 4) {
-                        ForEach(missing.missingFrom) { service in
-                            serviceTag(service)
-                        }
+                    ForEach(missing.missingFrom) { service in
+                        serviceTag(service)
                     }
                 }
-                Text("Tap to view")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
             }
 
         case .completionConflict(let conflict):
             VStack(alignment: .leading, spacing: 4) {
-                Text(conflict.task.title)
-                    .font(.body)
+                HStack {
+                    Text(conflict.task.title)
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 Text("Done in \(conflict.completedIn.displayName), open in \(conflict.openIn.displayName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -377,23 +405,25 @@ struct MergeReviewView: View {
 
         case .fieldConflict(let conflict):
             VStack(alignment: .leading, spacing: 4) {
-                Text(conflict.tasks.first?.title ?? "")
-                    .font(.body)
+                HStack {
+                    Text(conflict.tasks.first?.title ?? "")
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    decisionBadge(proposal.decision)
+                }
                 ForEach(conflict.conflictingFields, id: \.fieldName) { field in
-                    VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
                         Text(field.fieldName)
                             .font(.caption.weight(.medium))
-                        HStack(spacing: 4) {
-                            ForEach(Array(field.entries.enumerated()), id: \.offset) { index, entry in
-                                if index > 0 {
-                                    Text("vs")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Text(entry.value)
+                        ForEach(Array(field.entries.enumerated()), id: \.offset) { index, entry in
+                            if index > 0 {
+                                Text("vs")
                                     .font(.caption)
-                                    .foregroundStyle(serviceColor(entry.service))
+                                    .foregroundStyle(.secondary)
                             }
+                            Text(entry.value)
+                                .font(.caption)
+                                .foregroundStyle(serviceColor(entry.service))
                         }
                     }
                 }
@@ -405,18 +435,6 @@ struct MergeReviewView: View {
     }
 
     // MARK: - Helper Views
-
-    private func proposalIcon(_ proposal: MergeProposal) -> some View {
-        let (name, color): (String, Color) = switch proposal.action {
-        case .duplicate: ("checkmark.seal", .blue)
-        case .missingFrom: ("plus.circle", .green)
-        case .completionConflict: ("checkmark.circle.trianglebadge.exclamationmark", .orange)
-        case .fieldConflict: ("arrow.left.arrow.right", .purple)
-        }
-        return Image(systemName: name)
-            .foregroundStyle(color)
-            .accessibilityHidden(true)
-    }
 
     private func proposalTitle(_ proposal: MergeProposal) -> String {
         switch proposal.action {

@@ -25,6 +25,10 @@ struct AccountsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            #if DEBUG
+            devSection
+            #endif
         }
         .navigationTitle("Accounts")
         .task { await refreshStatus() }
@@ -96,6 +100,29 @@ struct AccountsView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(provider.displayName), \(subtitle), \(statusText)")
     }
+
+    #if DEBUG
+    private var devSection: some View {
+        let sub = SubscriptionManager.shared
+        return Section("Developer") {
+            Toggle("Pro Mode", isOn: Binding(
+                get: { sub.devProOverride },
+                set: { sub.devProOverride = $0 }
+            ))
+
+            HStack {
+                Text("Syncs Used")
+                Spacer()
+                Text("\(sub.syncCount) / \(SubscriptionManager.freeSyncLimit)")
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Reset Sync Count") {
+                sub.syncCount = 0
+            }
+        }
+    }
+    #endif
 
     private func providerColor(_ provider: ServiceProvider) -> Color {
         provider.taskServiceType.color

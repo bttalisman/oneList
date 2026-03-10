@@ -11,6 +11,8 @@ final class MergeReviewViewModel {
     var isLoading = false
     var errorMessage: String?
     var showingPushConfirmation = false
+    var showPushSuccess = false
+    var showPaywall = false
 
     private let services: [any TaskServiceProtocol]
     private let engine = MergeEngine()
@@ -36,6 +38,12 @@ final class MergeReviewViewModel {
     /// and runs in an unstructured Task so SwiftUI's .refreshable can't cancel
     /// the network requests mid-flight.
     func pullAndPropose() async {
+        let sub = SubscriptionManager.shared
+        guard sub.canSync else {
+            showPaywall = true
+            return
+        }
+
         if let activePull {
             logger.info("Pull already in progress, waiting for it...")
             await activePull.value
@@ -111,6 +119,7 @@ final class MergeReviewViewModel {
             }
             let connectedServices = Array(tasksByService.keys)
             session = MergeSession(proposals: proposals, servicesSynced: connectedServices)
+            SubscriptionManager.shared.recordSync()
         } catch {
             logger.error("Pull failed: \(error.localizedDescription) (type: \(type(of: error)))")
             errorMessage = error.localizedDescription
@@ -181,7 +190,11 @@ final class MergeReviewViewModel {
         }
 
         logger.info("Push complete, re-pulling to verify...")
+        let pushedSuccessfully = errorMessage == nil
         await pullAndPropose()
+        if pushedSuccessfully {
+            showPushSuccess = true
+        }
     }
 
     private func pushProposal(_ proposal: MergeProposal, allowedServices: Set<ServiceType>) async {
