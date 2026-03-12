@@ -18,6 +18,9 @@ final class EventMergeReviewViewModel {
     private let engine = EventMergeEngine()
     var linkStore: EventLinkStore?
 
+    /// Most recent pull data, retained for dev snapshot saving.
+    private(set) var lastPulledEventsByService: [ServiceType: [CanonicalEvent]] = [:]
+
     /// Default date range: 2 weeks back, 4 weeks forward
     var pullStartDate: Date = Calendar.current.date(byAdding: .weekOfYear, value: -2, to: Date())!
     var pullEndDate: Date = Calendar.current.date(byAdding: .weekOfYear, value: 4, to: Date())!
@@ -94,6 +97,9 @@ final class EventMergeReviewViewModel {
             }
 
             logger.info("Connected services with events: \(eventsByService.keys.map(\.displayName))")
+
+            lastPulledEventsByService = eventsByService
+            try? DevDataStore.saveEvents(eventsByService)
 
             guard eventsByService.count >= 2 else {
                 logger.warning("Only \(eventsByService.count) calendar service(s) connected — need at least 2")
@@ -275,6 +281,57 @@ final class EventMergeReviewViewModel {
             logger.error("Failed to delete from \(serviceType.displayName): \(error.localizedDescription)")
             errorMessage = "Failed to remove from \(serviceType.displayName): \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Dev Snapshots
+
+    func saveSnapshot() {
+        guard !lastPulledEventsByService.isEmpty else {
+            errorMessage = "No pulled data to save. Pull first."
+            return
+        }
+        do {
+            try DevDataStore.saveEvents(lastPulledEventsByService)
+            logger.info("Event snapshot saved")
+        } catch {
+            logger.error("Failed to save event snapshot: \(error.localizedDescription)")
+            errorMessage = "Failed to save snapshot: \(error.localizedDescription)"
+        }
+    }
+
+    func loadSnapshot(from url: URL? = nil) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let eventsByService = try DevDataStore.loadEvents(from: url)
+            lastPulledEventsByService = eventsByService
+
+            guard eventsByService.count >= 2 else {
+                errorMessage = "Snapshot has fewer than 2 services."
+                isLoading = false
+                return
+            }
+
+            var proposals = engine.generateProposals(
+                eventsByService: eventsByService,
+                linkStore: linkStore
+            )
+
+            let skippedTitles = persistedSkippedTitles
+            for i in proposals.indices {
+                if let title = proposalTitle(proposals[i]), skippedTitles.contains(title) {
+                    proposals[i].decision = .rejected
+                }
+            }
+
+            let connectedServices = Array(eventsByService.keys)
+            session = EventMergeSession(proposals: proposals, servicesSynced: connectedServices)
+            logger.info("Loaded event snapshot with \(proposals.count) proposals")
+        } catch {
+            logger.error("Failed to load event snapshot: \(error.localizedDescription)")
+            errorMessage = "Failed to load snapshot: \(error.localizedDescription)"
+        }
+        isLoading = false
     }
 
     private func proposalTitle(_ proposal: EventMergeProposal) -> String? {

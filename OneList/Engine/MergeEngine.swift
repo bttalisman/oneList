@@ -66,7 +66,18 @@ struct MergeEngine {
             }
         }
 
-        proposals.sort { a, b in sortOrder(a) < sortOrder(b) }
+        proposals.sort { a, b in
+            let orderA = sortOrder(a)
+            let orderB = sortOrder(b)
+            if orderA != orderB { return orderA < orderB }
+            // Within same action type, sort by due date (nil last)
+            switch (proposalDueDate(a), proposalDueDate(b)) {
+            case (nil, nil): return false
+            case (nil, _): return false
+            case (_, nil): return true
+            case (let d1?, let d2?): return d1 < d2
+            }
+        }
         return proposals
     }
 
@@ -110,15 +121,46 @@ struct MergeEngine {
         // Pass 1: Build clusters from link-matched tasks first.
         // This ensures link clusters exist before title matching runs,
         // so newly-pushed tasks (with no link yet) can title-match to them.
+        // For recurring tasks (same title, different due dates), skip the link
+        // if adding this task would create a due-date mismatch with tasks from
+        // other services already in the cluster — let Pass 2 handle date-aware matching.
         for (task, service) in allTasks {
             guard !assignedTaskIDs.contains(task.id) else { continue }
 
             if let linkStore, let nativeID = task.serviceOrigins.first?.nativeID {
                 if let link = linkStore.findLink(nativeID: nativeID, service: service) {
                     if let clusterIdx = linkToCluster[link.id] {
-                        clusters[clusterIdx].add(task: task, service: service, confidence: .exact)
-                        assignedTaskIDs.insert(task.id)
-                        logger.debug("Linked '\(task.title)' to existing cluster via link '\(link.lastKnownTitle)'")
+                        // Verify the task's title still matches the cluster.
+                        // Stale links from previous fuzzy-match errors can pair
+                        // unrelated tasks (e.g., "Liz bathroom" → "Max bathroom").
+                        let clusterTitle = normalize(clusters[clusterIdx].allTasks.first?.title ?? "")
+                        let taskTitle = normalize(task.title)
+                        let fuzzyResult = fuzzyMatch(clusterTitle, taskTitle)
+                        let titlesMatch = clusterTitle == taskTitle || fuzzyResult != nil
+                        logger.info("Link title check: task='\(taskTitle)' cluster='\(clusterTitle)' exact=\(clusterTitle == taskTitle) fuzzy=\(String(describing: fuzzyResult)) match=\(titlesMatch)")
+
+                        // Check if this task's due date conflicts with tasks from
+                        // OTHER services in the cluster (recurring task detection)
+                        let otherServiceTasks = clusters[clusterIdx].allTasks.filter {
+                            $0.serviceOrigins.first?.service != service
+                        }
+                        let hasDateConflict = task.dueDate != nil
+                            && !otherServiceTasks.isEmpty
+                            && !otherServiceTasks.contains { sameDayOrBothNil(task.dueDate, $0.dueDate) }
+
+                        if !titlesMatch {
+                            // Remove the stale nativeID from this link so it doesn't
+                            // keep mismatching on future pulls
+                            link.setNativeID("", for: service)
+                            linkStore.save()
+                            logger.info("Skipping link for '\(task.title)' — title mismatch with cluster '\(clusterTitle)' (stale link cleaned)")
+                        } else if hasDateConflict {
+                            logger.debug("Skipping link for '\(task.title)' — due date mismatch with cluster (recurring task)")
+                        } else {
+                            clusters[clusterIdx].add(task: task, service: service, confidence: .exact)
+                            assignedTaskIDs.insert(task.id)
+                            logger.debug("Linked '\(task.title)' to existing cluster via link '\(link.lastKnownTitle)'")
+                        }
                     } else {
                         var cluster = TaskCluster(tasksByService: [:], confidence: .exact, linkID: link.id)
                         cluster.add(task: task, service: service, confidence: .exact)
@@ -133,38 +175,65 @@ struct MergeEngine {
         }
 
         // Pass 2: Title-match remaining (unlinked) tasks against existing clusters.
+        // When multiple clusters share the same title (recurring tasks), prefer the
+        // cluster whose tasks share the same due date.
         for (task, service) in allTasks {
             guard !assignedTaskIDs.contains(task.id) else { continue }
 
-            var matchedClusterIndex: Int?
-            var matchConfidence: MatchConfidence = .exact
+            struct CandidateMatch {
+                let index: Int
+                let confidence: MatchConfidence
+                let dueDateMatches: Bool
+            }
+
+            var candidates: [CandidateMatch] = []
 
             for (index, cluster) in clusters.enumerated() {
+                var bestConfidence: MatchConfidence?
+
                 for existingTask in cluster.allTasks {
                     let titleA = normalize(task.title)
                     let titleB = normalize(existingTask.title)
                     guard !titleA.isEmpty, !titleB.isEmpty else { continue }
 
                     if titleA == titleB {
-                        matchedClusterIndex = index
-                        matchConfidence = .exact
+                        bestConfidence = .exact
                         break
                     } else if let confidence = fuzzyMatch(titleA, titleB) {
-                        if matchedClusterIndex == nil || confidence > matchConfidence {
-                            matchedClusterIndex = index
-                            matchConfidence = confidence
+                        if bestConfidence == nil || confidence > bestConfidence! {
+                            bestConfidence = confidence
                         }
                     }
                 }
-                if matchedClusterIndex == index && matchConfidence == .exact {
-                    break
+
+                if let confidence = bestConfidence {
+                    let dueDateMatches = cluster.allTasks.contains { existingTask in
+                        sameDayOrBothNil(task.dueDate, existingTask.dueDate)
+                    }
+                    candidates.append(CandidateMatch(
+                        index: index, confidence: confidence, dueDateMatches: dueDateMatches
+                    ))
                 }
             }
 
-            if let clusterIndex = matchedClusterIndex {
-                let existingTitle = clusters[clusterIndex].allTasks.first?.title ?? "?"
-                logger.debug("Title-matched '\(task.title)' (\(service.displayName)) → cluster '\(existingTitle)' confidence=\(String(describing: matchConfidence))")
-                clusters[clusterIndex].add(task: task, service: service, confidence: matchConfidence)
+            // Prefer: (1) due-date match, (2) highest confidence.
+            // If the task has a due date but no candidate shares it, start a new cluster
+            // rather than merging unrelated recurring instances together.
+            let bestCandidate = candidates
+                .sorted { a, b in
+                    if a.dueDateMatches != b.dueDateMatches { return a.dueDateMatches }
+                    return a.confidence > b.confidence
+                }
+                .first
+
+            let shouldCreateNew = task.dueDate != nil
+                && bestCandidate != nil
+                && !bestCandidate!.dueDateMatches
+
+            if let match = bestCandidate, !shouldCreateNew {
+                let existingTitle = clusters[match.index].allTasks.first?.title ?? "?"
+                logger.debug("Title-matched '\(task.title)' (\(service.displayName)) → cluster '\(existingTitle)' confidence=\(String(describing: match.confidence)) dueDateMatch=\(match.dueDateMatches)")
+                clusters[match.index].add(task: task, service: service, confidence: match.confidence)
             } else {
                 logger.debug("New cluster for '\(task.title)' (\(service.displayName)) — no link or title match")
                 var cluster = TaskCluster(tasksByService: [:], confidence: .exact, linkID: nil)
@@ -397,9 +466,8 @@ struct MergeEngine {
 
         let similarity = 1.0 - (Double(distance) / Double(maxLen))
 
-        if similarity >= 0.85 { return .high }
-        if similarity >= 0.70 { return .medium }
-        if similarity >= 0.55 && maxLen >= 8 { return .low }
+        if similarity >= 0.90 { return .high }
+        if similarity >= 0.80 { return .medium }
 
         return nil
     }
@@ -518,6 +586,15 @@ struct MergeEngine {
     }
 
     // MARK: - Sort Helpers
+
+    private func proposalDueDate(_ proposal: MergeProposal) -> Date? {
+        switch proposal.action {
+        case .duplicate(let match): match.mergedResult.dueDate
+        case .missingFrom(let missing): missing.task.dueDate
+        case .completionConflict(let conflict): conflict.task.dueDate
+        case .fieldConflict(let conflict): conflict.mergedResult.dueDate
+        }
+    }
 
     private func sortOrder(_ proposal: MergeProposal) -> Int {
         switch proposal.action {

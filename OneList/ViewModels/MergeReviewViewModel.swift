@@ -18,6 +18,9 @@ final class MergeReviewViewModel {
     private let engine = MergeEngine()
     var linkStore: TaskLinkStore?
 
+    /// Most recent pull data, retained for dev snapshot saving.
+    private(set) var lastPulledTasksByService: [ServiceType: [CanonicalTask]] = [:]
+
     private static let skippedKey = "OneList_SkippedTitles"
 
     private var persistedSkippedTitles: Set<String> {
@@ -78,6 +81,9 @@ final class MergeReviewViewModel {
                 }
                 tasksByService[service.serviceType] = tasks
             }
+
+            lastPulledTasksByService = tasksByService
+            try? DevDataStore.saveTasks(tasksByService)
 
             guard tasksByService.count >= 2 else {
                 logger.warning("Only \(tasksByService.count) service(s) connected — need at least 2")
@@ -278,6 +284,57 @@ final class MergeReviewViewModel {
             logger.error("Failed to delete from \(serviceType.displayName): \(error.localizedDescription)")
             errorMessage = "Failed to remove from \(serviceType.displayName): \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Dev Snapshots
+
+    func saveSnapshot() {
+        guard !lastPulledTasksByService.isEmpty else {
+            errorMessage = "No pulled data to save. Pull first."
+            return
+        }
+        do {
+            try DevDataStore.saveTasks(lastPulledTasksByService)
+            logger.info("Task snapshot saved")
+        } catch {
+            logger.error("Failed to save task snapshot: \(error.localizedDescription)")
+            errorMessage = "Failed to save snapshot: \(error.localizedDescription)"
+        }
+    }
+
+    func loadSnapshot(from url: URL? = nil) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let tasksByService = try DevDataStore.loadTasks(from: url)
+            lastPulledTasksByService = tasksByService
+
+            guard tasksByService.count >= 2 else {
+                errorMessage = "Snapshot has fewer than 2 services."
+                isLoading = false
+                return
+            }
+
+            var proposals = engine.generateProposals(
+                tasksByService: tasksByService,
+                linkStore: linkStore
+            )
+
+            let skippedTitles = persistedSkippedTitles
+            for i in proposals.indices {
+                if let title = proposalTitle(proposals[i]), skippedTitles.contains(title) {
+                    proposals[i].decision = .rejected
+                }
+            }
+
+            let connectedServices = Array(tasksByService.keys)
+            session = MergeSession(proposals: proposals, servicesSynced: connectedServices)
+            logger.info("Loaded task snapshot with \(proposals.count) proposals")
+        } catch {
+            logger.error("Failed to load task snapshot: \(error.localizedDescription)")
+            errorMessage = "Failed to load snapshot: \(error.localizedDescription)"
+        }
+        isLoading = false
     }
 
     /// Extract the primary task title from any proposal type.

@@ -11,5 +11,8 @@ DerivedData/
 *.xcuserdata
 *.xcworkspace/xcuserdata/
 
+# Snapshots
+snapshots/
+
 # macOS
 .DS_Store

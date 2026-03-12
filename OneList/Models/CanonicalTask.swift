@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The unified internal representation of a task, independent of any service.
 /// Each service adapter maps to/from this format.
-struct CanonicalTask: Identifiable, Hashable {
+struct CanonicalTask: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var notes: String?
@@ -18,7 +18,7 @@ struct CanonicalTask: Identifiable, Hashable {
     /// Tracks where this task came from and its native ID in that service.
     var serviceOrigins: [ServiceOrigin]
 
-    enum Priority: Int, Comparable, CaseIterable, Hashable {
+    enum Priority: Int, Comparable, CaseIterable, Hashable, Codable {
         case none = 0
         case low = 1
         case medium = 2
@@ -64,7 +64,7 @@ struct CanonicalTask: Identifiable, Hashable {
 // MARK: - Service Origin
 
 /// Links a canonical task back to its native representation in a specific service.
-struct ServiceOrigin: Hashable {
+struct ServiceOrigin: Hashable, Codable {
     let service: ServiceType
     /// The native identifier in the originating service (e.g., EKReminder calendarItemIdentifier).
     let nativeID: String
@@ -76,7 +76,7 @@ struct ServiceOrigin: Hashable {
 
 // MARK: - Service Type
 
-enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable {
+enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Codable {
     case appleReminders = "apple_reminders"
     case googleTasks = "google_tasks"
     case microsoftToDo = "microsoft_todo"

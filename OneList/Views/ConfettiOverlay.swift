@@ -12,10 +12,12 @@ struct ConfettiOverlay: View {
     ]
 
     var body: some View {
+        GeometryReader { geo in
         TimelineView(.animation) { timeline in
             let elapsed = startTime.map { timeline.date.timeIntervalSince($0) } ?? 0
 
             Canvas { context, size in
+                if bursts.isEmpty { return }
                 for burst in bursts {
                     let bt = elapsed - burst.delay
                     guard bt > 0 else { continue }
@@ -78,15 +80,16 @@ struct ConfettiOverlay: View {
                 }
             }
         }
-        .allowsHitTesting(false)
-        .ignoresSafeArea()
         .onAppear {
             startTime = .now
-            generateBursts()
+            generateBursts(in: geo.size)
         }
+        }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
     }
 
-    private func generateBursts() {
+    private func generateBursts(in size: CGSize) {
         let origins: [(CGFloat, CGFloat, Double)] = [
             (0.50, 0.35, 0.0),
             (0.25, 0.28, 0.25),
@@ -95,8 +98,8 @@ struct ConfettiOverlay: View {
 
         bursts = origins.map { (xPct, yPct, delay) in
             ConfettiBurst(
-                originX: UIScreen.main.bounds.width * xPct,
-                originY: UIScreen.main.bounds.height * yPct,
+                originX: size.width * xPct,
+                originY: size.height * yPct,
                 delay: delay,
                 particles: (0..<40).map { _ in
                     let angle = Double.random(in: 0...(2 * .pi))

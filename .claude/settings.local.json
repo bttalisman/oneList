@@ -6,7 +6,16 @@
       "Bash(swift:*)",
       "Bash(sips:*)",
       "Bash(python3:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -30)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build 2>&1 | tail -20)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build 2>&1 | tail -5)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build 2>&1 | grep \"error:\")",
+      "Bash(grep -n \"SyncedEventDetailView\\\\|SyncedTaskDetailView\" /Users/benjamintalisman/repos/counter/OneList/OneList/Views/*.swift)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build 2>&1 | tail -30)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -30)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -10)",
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -5)"
     ]
   }
 }

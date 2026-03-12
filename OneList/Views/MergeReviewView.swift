@@ -350,6 +350,7 @@ struct MergeReviewView: View {
                     Spacer()
                     decisionBadge(proposal.decision)
                 }
+                dueDateLabel(match.mergedResult.dueDate)
                 HStack(spacing: 4) {
                     let uniqueServices = match.mergedResult.serviceOrigins
                         .map(\.service)
@@ -374,6 +375,7 @@ struct MergeReviewView: View {
                     Spacer()
                     decisionBadge(proposal.decision)
                 }
+                dueDateLabel(missing.task.dueDate)
                 HStack(spacing: 4) {
                     Text("In:")
                         .font(.caption)
@@ -398,6 +400,7 @@ struct MergeReviewView: View {
                     Spacer()
                     decisionBadge(proposal.decision)
                 }
+                dueDateLabel(conflict.task.dueDate)
                 Text("Done in \(conflict.completedIn.displayName), open in \(conflict.openIn.displayName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -411,6 +414,7 @@ struct MergeReviewView: View {
                     Spacer()
                     decisionBadge(proposal.decision)
                 }
+                dueDateLabel(conflict.mergedResult.dueDate)
                 ForEach(conflict.conflictingFields, id: \.fieldName) { field in
                     HStack(spacing: 4) {
                         Text(field.fieldName)
@@ -435,6 +439,22 @@ struct MergeReviewView: View {
     }
 
     // MARK: - Helper Views
+
+    private static let dueDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
+    @ViewBuilder
+    private func dueDateLabel(_ date: Date?) -> some View {
+        if let date {
+            Text("Due \(Self.dueDateFormatter.string(from: date))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
 
     private func proposalTitle(_ proposal: MergeProposal) -> String {
         switch proposal.action {
