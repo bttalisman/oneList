@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k4: Same as k but streams run parallel through center before fanning out — like fiber optics -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Blue: wide entry, narrows to center, runs parallel, fans out -->
+  <path d="M120 160 Q280 160 380 420 L420 480 L600 480 Q700 480 880 280" fill="none" stroke="#4A90D9" stroke-width="44" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Orange: straight through center -->
+  <path d="M80 512 L920 512" fill="none" stroke="#E8923A" stroke-width="44" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Green: wide entry, narrows, runs parallel, fans out -->
+  <path d="M120 864 Q280 864 380 604 L420 544 L600 544 Q700 544 880 744" fill="none" stroke="#4CAF7D" stroke-width="44" stroke-linecap="round" opacity="0.85"/>
+</svg>

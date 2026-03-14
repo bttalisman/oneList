@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="cc3">
+      <circle cx="512" cy="512" r="480"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#1C1C2E"/>
+
+  <g clip-path="url(#cc3)">
+    <path d="M-40 75  C375 75  410 275 460 400 C492 492 507 512 512 512 C517 512 532 492 564 400 C614 275 649 75  1060 75"  fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.3"/>
+    <path d="M-40 185 C340 185 390 340 460 435 C494 498 508 512 512 512 C516 512 530 498 564 435 C634 340 684 185 1060 185" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.4"/>
+    <path d="M-40 305 C305 305 370 400 460 468 C497 504 509 512 512 512 C515 512 527 504 564 468 C654 400 719 305 1060 305" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.55"/>
+    <path d="M-40 420 C260 420 355 460 460 494 C500 508 510 512 512 512 C514 512 524 508 564 494 C669 460 764 420 1060 420" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.7"/>
+    <path d="M-40 512 C200 512 350 512 460 512 C500 512 512 512 512 512 C524 512 564 512 674 512 C824 512 1060 512 1060 512" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" opacity="1.0"/>
+    <path d="M-40 604 C260 604 355 564 460 530 C500 516 510 512 512 512 C514 512 524 516 564 530 C669 564 764 604 1060 604" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.7"/>
+    <path d="M-40 719 C305 719 370 624 460 556 C497 520 509 512 512 512 C515 512 527 520 564 556 C654 624 719 719 1060 719" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.55"/>
+    <path d="M-40 839 C340 839 390 684 460 589 C494 526 508 512 512 512 C516 512 530 526 564 589 C634 684 684 839 1060 839" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.4"/>
+    <path d="M-40 949 C375 949 410 749 460 624 C492 532 507 512 512 512 C517 512 532 532 564 624 C614 749 649 949 1060 949" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.3"/>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k1: Tighter pinch at center, more dramatic fan-out on right -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <path d="M120 160 Q300 160 460 440 Q500 512 560 512 Q640 512 900 260" fill="none" stroke="#4A90D9" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+  <path d="M80 512 Q300 512 460 512 Q560 512 900 512" fill="none" stroke="#E8923A" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+  <path d="M120 864 Q300 864 460 584 Q500 512 560 512 Q640 512 900 764" fill="none" stroke="#4CAF7D" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+</svg>

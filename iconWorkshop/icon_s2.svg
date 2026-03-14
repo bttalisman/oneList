@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- s2: 11 lines, full spectrum, staggered -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <path d="M340 60  Q400 60  460 340 Q500 512 560 512 Q660 512 900 100" fill="none" stroke="#2B4F8C" stroke-width="30" stroke-linecap="round" opacity="0.8"/>
+  <path d="M290 150 Q370 150 460 390 Q500 512 560 512 Q660 512 900 200" fill="none" stroke="#3B6CB5" stroke-width="30" stroke-linecap="round" opacity="0.8"/>
+  <path d="M240 250 Q340 250 460 430 Q500 512 560 512 Q660 512 900 310" fill="none" stroke="#4A90D9" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+  <path d="M190 350 Q310 350 460 465 Q500 512 560 512 Q660 512 900 400" fill="none" stroke="#6AAEE0" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+  <path d="M135 440 Q280 440 460 490 Q500 512 560 512 Q660 512 900 460" fill="none" stroke="#8CC4E8" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M80  512 Q300 512 460 512 Q560 512 900 512" fill="none" stroke="#E8923A" stroke-width="32" stroke-linecap="round" opacity="0.9"/>
+
+  <path d="M135 584 Q280 584 460 534 Q500 512 560 512 Q660 512 900 564" fill="none" stroke="#8CD4A0" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+  <path d="M190 674 Q310 674 460 559 Q500 512 560 512 Q660 512 900 624" fill="none" stroke="#6BC48D" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+  <path d="M240 774 Q340 774 460 594 Q500 512 560 512 Q660 512 900 714" fill="none" stroke="#4CAF7D" stroke-width="30" stroke-linecap="round" opacity="0.85"/>
+  <path d="M290 874 Q370 874 460 634 Q500 512 560 512 Q660 512 900 824" fill="none" stroke="#3D9E6E" stroke-width="30" stroke-linecap="round" opacity="0.8"/>
+  <path d="M340 964 Q400 964 460 684 Q500 512 560 512 Q660 512 900 924" fill="none" stroke="#2E7D55" stroke-width="30" stroke-linecap="round" opacity="0.8"/>
+</svg>

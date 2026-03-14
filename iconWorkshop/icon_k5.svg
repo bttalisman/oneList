@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k5: Smooth continuous curves, no hard pinch — streams gently approach and diverge like sine waves -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Blue: starts high left, dips to center, rises high right -->
+  <path d="M80 200 C250 200 350 480 512 500 C674 520 750 200 940 200" fill="none" stroke="#4A90D9" stroke-width="50" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Orange: straight with a very gentle wave -->
+  <path d="M80 512 C250 520 350 504 512 512 C674 520 750 504 940 512" fill="none" stroke="#E8923A" stroke-width="50" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Green: starts low left, rises to center, dips low right -->
+  <path d="M80 824 C250 824 350 544 512 524 C674 504 750 824 940 824" fill="none" stroke="#4CAF7D" stroke-width="50" stroke-linecap="round" opacity="0.85"/>
+</svg>

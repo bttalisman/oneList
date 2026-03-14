@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k2: Streams truly merge into ONE white line at center, then split back into 3 colors on right -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Left: 3 colored streams converging -->
+  <path d="M120 180 Q300 180 440 440" fill="none" stroke="#4A90D9" stroke-width="48" stroke-linecap="round"/>
+  <path d="M80 512 L440 512" fill="none" stroke="#E8923A" stroke-width="48" stroke-linecap="round"/>
+  <path d="M120 844 Q300 844 440 584" fill="none" stroke="#4CAF7D" stroke-width="48" stroke-linecap="round"/>
+
+  <!-- Center: single white unified segment -->
+  <line x1="440" y1="512" x2="584" y2="512" stroke="#FFFFFF" stroke-width="52" stroke-linecap="round"/>
+
+  <!-- Right: fan back out in same colors -->
+  <path d="M584 512 Q620 480 740 340 Q800 260 900 200" fill="none" stroke="#4A90D9" stroke-width="48" stroke-linecap="round"/>
+  <path d="M584 512 L900 512" fill="none" stroke="#E8923A" stroke-width="48" stroke-linecap="round"/>
+  <path d="M584 512 Q620 544 740 684 Q800 764 900 824" fill="none" stroke="#4CAF7D" stroke-width="48" stroke-linecap="round"/>
+</svg>

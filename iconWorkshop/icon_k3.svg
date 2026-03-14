@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k3: 5 streams, tighter merge zone, fan to 5 on right, light bg -->
+  <rect width="1024" height="1024" rx="224" fill="#F5F5F7"/>
+
+  <!-- Left incoming -->
+  <path d="M100 140 Q280 140 440 420" fill="none" stroke="#4A90D9" stroke-width="36" stroke-linecap="round"/>
+  <path d="M80 330 Q280 330 440 460" fill="none" stroke="#7AB8E8" stroke-width="36" stroke-linecap="round"/>
+  <path d="M60 512 L440 512" fill="none" stroke="#E8923A" stroke-width="36" stroke-linecap="round"/>
+  <path d="M80 694 Q280 694 440 564" fill="none" stroke="#4CAF7D" stroke-width="36" stroke-linecap="round"/>
+  <path d="M100 884 Q280 884 440 604" fill="none" stroke="#2E7D55" stroke-width="36" stroke-linecap="round"/>
+
+  <!-- Right outgoing -->
+  <path d="M584 420 Q700 140 920 140" fill="none" stroke="#4A90D9" stroke-width="36" stroke-linecap="round"/>
+  <path d="M584 460 Q700 330 920 330" fill="none" stroke="#7AB8E8" stroke-width="36" stroke-linecap="round"/>
+  <path d="M584 512 L960 512" fill="none" stroke="#E8923A" stroke-width="36" stroke-linecap="round"/>
+  <path d="M584 564 Q700 694 920 694" fill="none" stroke="#4CAF7D" stroke-width="36" stroke-linecap="round"/>
+  <path d="M584 604 Q700 884 920 884" fill="none" stroke="#2E7D55" stroke-width="36" stroke-linecap="round"/>
+
+  <!-- Center merge bar -->
+  <line x1="440" y1="512" x2="584" y2="512" stroke="#1C1C2E" stroke-width="44" stroke-linecap="round"/>
+</svg>

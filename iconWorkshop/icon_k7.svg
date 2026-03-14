@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k7: Same shape as v3k but with 7 lines -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <path d="M120 100 Q300 100 440 380 Q500 512 560 512 Q660 512 900 180" fill="none" stroke="#3B6CB5" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+  <path d="M100 220 Q300 220 440 420 Q500 512 560 512 Q660 512 900 300" fill="none" stroke="#4A90D9" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+  <path d="M90 360 Q280 360 440 470 Q500 512 560 512 Q660 512 900 420" fill="none" stroke="#7AB8E8" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M80 512 Q300 512 440 512 Q560 512 900 512" fill="none" stroke="#E8923A" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M90 664 Q280 664 440 554 Q500 512 560 512 Q660 512 900 604" fill="none" stroke="#6BC48D" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+  <path d="M100 804 Q300 804 440 604 Q500 512 560 512 Q660 512 900 724" fill="none" stroke="#4CAF7D" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+  <path d="M120 924 Q300 924 440 644 Q500 512 560 512 Q660 512 900 844" fill="none" stroke="#2E7D55" stroke-width="40" stroke-linecap="round" opacity="0.85"/>
+</svg>

@@ -253,12 +253,14 @@ final class CalendarViewModel {
     func previousMonth() {
         if let date = calendar.date(byAdding: .month, value: -1, to: displayedMonth) {
             displayedMonth = date
+            expandRangeIfNeeded()
         }
     }
 
     func nextMonth() {
         if let date = calendar.date(byAdding: .month, value: 1, to: displayedMonth) {
             displayedMonth = date
+            expandRangeIfNeeded()
         }
     }
 
@@ -267,6 +269,30 @@ final class CalendarViewModel {
             from: calendar.dateComponents([.year, .month], from: Date())
         ) ?? Date()
         selectedDate = calendar.startOfDay(for: Date())
+    }
+
+    /// If the displayed month is outside the event pull range, expand the range and re-pull.
+    private func expandRangeIfNeeded() {
+        let firstOfMonth = displayedMonth
+        guard let lastOfMonth = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: firstOfMonth) else { return }
+
+        var needsExpand = false
+
+        if firstOfMonth < eventViewModel.pullStartDate {
+            eventViewModel.pullStartDate = calendar.date(byAdding: .weekOfYear, value: -1, to: firstOfMonth)!
+            needsExpand = true
+        }
+        if lastOfMonth > eventViewModel.pullEndDate {
+            eventViewModel.pullEndDate = calendar.date(byAdding: .weekOfYear, value: 1, to: lastOfMonth)!
+            needsExpand = true
+        }
+
+        if needsExpand {
+            logger.info("Expanding event pull range to \(self.eventViewModel.pullStartDate) – \(self.eventViewModel.pullEndDate)")
+            Task {
+                await eventViewModel.pullAndPropose()
+            }
+        }
     }
 
     // MARK: - Helpers

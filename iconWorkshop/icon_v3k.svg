@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- v3k: 3 streams merge and continue as a single rainbow-like flowing ribbon -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Blue stream from top-left, curves to center then flows right -->
+  <path d="M140 180 Q300 180 420 400 Q480 512 580 512 Q700 512 880 380" fill="none" stroke="#4A90D9" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Orange stream from left, straight then flows right -->
+  <path d="M100 512 Q300 512 420 512 Q500 512 580 512 Q700 512 880 512" fill="none" stroke="#E8923A" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Green stream from bottom-left, curves to center then flows right -->
+  <path d="M140 844 Q300 844 420 624 Q480 512 580 512 Q700 512 880 644" fill="none" stroke="#4CAF7D" stroke-width="48" stroke-linecap="round" opacity="0.85"/>
+</svg>

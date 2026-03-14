@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- circle1: 7 blue/orange/green lines inscribed in circle, clipped to perimeter -->
+  <defs>
+    <clipPath id="circleClip1">
+      <circle cx="512" cy="512" r="480"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="0" fill="#1C1C2E"/>
+  <circle cx="512" cy="512" r="480" fill="#1C1C2E" stroke="#2A2A44" stroke-width="3"/>
+
+  <g clip-path="url(#circleClip1)">
+    <path d="M-40 95  C350 95  390 280 450 410 C485 496 505 512 512 512 C519 512 539 496 574 410 C634 280 674 95  1060 95"  fill="none" stroke="#3B6CB5" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 235 C310 235 365 380 450 455 C490 502 507 512 512 512 C517 512 534 502 574 455 C659 380 714 235 1060 235" fill="none" stroke="#4A90D9" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 380 C265 380 345 440 450 485 C496 506 509 512 512 512 C515 512 528 506 574 485 C679 440 759 380 1060 380" fill="none" stroke="#7AB8E8" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+    <path d="M-40 512 C200 512 350 512 450 512 C500 512 512 512 512 512 C524 512 574 512 674 512 C824 512 1060 512 1060 512" fill="none" stroke="#E8923A" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+    <path d="M-40 644 C265 644 345 584 450 539 C496 518 509 512 512 512 C515 512 528 518 574 539 C679 584 759 644 1060 644" fill="none" stroke="#6BC48D" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 789 C310 789 365 644 450 569 C490 522 507 512 512 512 C517 512 534 522 574 569 C659 644 714 789 1060 789" fill="none" stroke="#4CAF7D" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 929 C350 929 390 744 450 614 C485 528 505 512 512 512 C519 512 539 528 574 614 C634 744 674 929 1060 929" fill="none" stroke="#2E7D55" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+  </g>
+</svg>

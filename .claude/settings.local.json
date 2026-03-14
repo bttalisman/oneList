@@ -15,7 +15,12 @@
       "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build 2>&1 | tail -30)",
       "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -30)",
       "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -10)",
-      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -5)"
+      "Bash(xcodebuild -scheme OneList -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet build 2>&1 | tail -5)",
+      "Bash(pip3 install:*)",
+      "Bash(brew install:*)",
+      "Bash(DYLD_LIBRARY_PATH=/opt/homebrew/lib python3 -c \"\nimport cairosvg\ncairosvg.svg2png\\(\n    url='/Users/benjamintalisman/repos/counter/OneList/icon_taper1.svg',\n    write_to='/Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon.png',\n    output_width=1024,\n    output_height=1024\n\\)\ncairosvg.svg2png\\(\n    url='/Users/benjamintalisman/repos/counter/OneList/icon_taper1.svg',\n    write_to='/Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark.png',\n    output_width=1024,\n    output_height=1024\n\\)\nprint\\('Done'\\)\n\")",
+      "Bash(rsvg-convert -w 1024 -h 1024 /Users/benjamintalisman/repos/counter/OneList/icon_taper1.svg -o /Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon.png && rsvg-convert -w 1024 -h 1024 /Users/benjamintalisman/repos/counter/OneList/icon_taper1.svg -o /Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark.png && echo \"Done\")",
+      "Bash(rsvg-convert -w 1024 -h 1024 /Users/benjamintalisman/repos/counter/OneList/iconWorkshop/icon_taper1.svg -o /Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon.png && rsvg-convert -w 1024 -h 1024 /Users/benjamintalisman/repos/counter/OneList/iconWorkshop/icon_taper1.svg -o /Users/benjamintalisman/repos/counter/OneList/OneList/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark.png && echo \"Done\")"
     ]
   }
 }

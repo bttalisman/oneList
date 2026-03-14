@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- circle2: 11 spectrum lines inscribed in circle -->
+  <defs>
+    <clipPath id="circleClip2">
+      <circle cx="512" cy="512" r="480"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="0" fill="#1C1C2E"/>
+  <circle cx="512" cy="512" r="480" fill="#1C1C2E" stroke="#2A2A44" stroke-width="3"/>
+
+  <g clip-path="url(#circleClip2)">
+    <path d="M-40 55  C390 55  420 260 460 390 C490 490 505 512 512 512 C519 512 534 490 564 390 C604 260 634 55  1060 55"  fill="none" stroke="#2B4F8C" stroke-width="28" stroke-linecap="round" opacity="0.8"/>
+    <path d="M-40 145 C360 145 400 310 460 420 C493 496 507 512 512 512 C517 512 531 496 564 420 C624 310 664 145 1060 145" fill="none" stroke="#3B6CB5" stroke-width="28" stroke-linecap="round" opacity="0.8"/>
+    <path d="M-40 240 C330 240 385 360 460 450 C496 500 508 512 512 512 C516 512 528 500 564 450 C639 360 694 240 1060 240" fill="none" stroke="#4A90D9" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 345 C295 345 370 410 460 472 C498 504 509 512 512 512 C515 512 526 504 564 472 C654 410 729 345 1060 345" fill="none" stroke="#6AAEE0" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 440 C255 440 355 465 460 496 C500 508 510 512 512 512 C514 512 524 508 564 496 C669 465 769 440 1060 440" fill="none" stroke="#8CC4E8" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+
+    <path d="M-40 512 C200 512 350 512 460 512 C500 512 512 512 512 512 C524 512 564 512 674 512 C824 512 1060 512 1060 512" fill="none" stroke="#E8923A" stroke-width="30" stroke-linecap="round" opacity="0.9"/>
+
+    <path d="M-40 584 C255 584 355 559 460 528 C500 516 510 512 512 512 C514 512 524 516 564 528 C669 559 769 584 1060 584" fill="none" stroke="#8CD4A0" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 679 C295 679 370 614 460 552 C498 520 509 512 512 512 C515 512 526 520 564 552 C654 614 729 679 1060 679" fill="none" stroke="#6BC48D" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 784 C330 784 385 664 460 574 C496 524 508 512 512 512 C516 512 528 524 564 574 C639 664 694 784 1060 784" fill="none" stroke="#4CAF7D" stroke-width="28" stroke-linecap="round" opacity="0.85"/>
+    <path d="M-40 879 C360 879 400 714 460 604 C493 528 507 512 512 512 C517 512 531 528 564 604 C624 714 664 879 1060 879" fill="none" stroke="#3D9E6E" stroke-width="28" stroke-linecap="round" opacity="0.8"/>
+    <path d="M-40 969 C390 969 420 764 460 634 C490 534 505 512 512 512 C519 512 534 534 564 634 C604 764 634 969 1060 969" fill="none" stroke="#2E7D55" stroke-width="28" stroke-linecap="round" opacity="0.8"/>
+  </g>
+</svg>

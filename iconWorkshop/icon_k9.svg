@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k9: 9 lines, same shape, but all white — pure and clean -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <path d="M120 80  Q300 80  440 360 Q500 512 560 512 Q660 512 900 120" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.35"/>
+  <path d="M105 190 Q290 190 440 400 Q500 512 560 512 Q660 512 900 240" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.45"/>
+  <path d="M95  310 Q280 310 440 450 Q500 512 560 512 Q660 512 900 360" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.55"/>
+  <path d="M85  420 Q270 420 440 488 Q500 512 560 512 Q660 512 900 450" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.7"/>
+
+  <path d="M80  512 Q300 512 440 512 Q560 512 900 512" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" opacity="1.0"/>
+
+  <path d="M85  604 Q270 604 440 536 Q500 512 560 512 Q660 512 900 574" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.7"/>
+  <path d="M95  714 Q280 714 440 574 Q500 512 560 512 Q660 512 900 664" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.55"/>
+  <path d="M105 834 Q290 834 440 624 Q500 512 560 512 Q660 512 900 784" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.45"/>
+  <path d="M120 944 Q300 944 440 664 Q500 512 560 512 Q660 512 900 904" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity="0.35"/>
+</svg>

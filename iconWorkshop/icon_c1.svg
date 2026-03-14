@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- c1: 7 lines following sine curves that converge and diverge, staggered starts -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Generated with circular/sinusoidal spacing: each line's Y offset follows sin curve -->
+  <!-- Amplitude decreases toward center (merge), increases after -->
+
+  <path d="M280 100 C340 100 380 280 420 400 C460 500 480 512 512 512 C544 512 560 500 600 400 C640 280 680 100 900 100" fill="none" stroke="#3B6CB5" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M220 210 C300 210 360 340 420 440 C470 504 490 512 512 512 C534 512 550 504 600 440 C660 340 720 210 900 210" fill="none" stroke="#4A90D9" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M160 350 C260 350 350 420 420 475 C475 508 495 512 512 512 C529 512 545 508 600 475 C670 420 760 350 900 350" fill="none" stroke="#7AB8E8" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M80 512 C200 512 350 512 420 512 C470 512 500 512 512 512 C524 512 550 512 600 512 C670 512 820 512 940 512" fill="none" stroke="#E8923A" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M160 674 C260 674 350 604 420 549 C475 516 495 512 512 512 C529 512 545 516 600 549 C670 604 760 674 900 674" fill="none" stroke="#6BC48D" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M220 814 C300 814 360 684 420 584 C470 520 490 512 512 512 C534 512 550 520 600 584 C660 684 720 814 900 814" fill="none" stroke="#4CAF7D" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M280 924 C340 924 380 744 420 624 C460 524 480 512 512 512 C544 512 560 524 600 624 C640 744 680 924 900 924" fill="none" stroke="#2E7D55" stroke-width="38" stroke-linecap="round" opacity="0.85"/>
+</svg>

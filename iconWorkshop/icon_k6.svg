@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- k6: Like k but the right side fans into a wider spray — more energy/explosion feel -->
+  <rect width="1024" height="1024" rx="224" fill="#1C1C2E"/>
+
+  <!-- Tight convergence on left -->
+  <path d="M140 200 Q320 200 460 460 Q500 512 540 512 Q620 512 900 140" fill="none" stroke="#4A90D9" stroke-width="46" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M100 512 Q300 512 460 512 Q540 512 900 512" fill="none" stroke="#E8923A" stroke-width="46" stroke-linecap="round" opacity="0.85"/>
+
+  <path d="M140 824 Q320 824 460 564 Q500 512 540 512 Q620 512 900 884" fill="none" stroke="#4CAF7D" stroke-width="46" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Extra spray lines for energy -->
+  <path d="M540 512 Q660 460 900 320" fill="none" stroke="#4A90D9" stroke-width="20" stroke-linecap="round" opacity="0.4"/>
+  <path d="M540 512 Q660 564 900 700" fill="none" stroke="#4CAF7D" stroke-width="20" stroke-linecap="round" opacity="0.4"/>
+</svg>
