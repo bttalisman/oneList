@@ -11,6 +11,8 @@ struct AccountsView: View {
     @State private var providerEmails: [ServiceProvider: String] = [:]
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var showingCoziFeedInput = false
+    @State private var coziFeedURLInput = ""
 
     var body: some View {
         List {
@@ -33,6 +35,19 @@ struct AccountsView: View {
             Button("OK") {}
         } message: {
             Text(errorMessage ?? "Unknown error")
+        }
+        .alert("Cozi Calendar Feed", isPresented: $showingCoziFeedInput) {
+            TextField("Paste ICS feed URL", text: $coziFeedURLInput)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Connect") {
+                Task {
+                    await connectCozi(feedURL: coziFeedURLInput)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Paste your Cozi ICS calendar feed URL. You can find this in your Cozi account settings.")
         }
     }
 
@@ -97,7 +112,7 @@ struct AccountsView: View {
     }
 
     private func providerColor(_ provider: ServiceProvider) -> Color {
-        provider.taskServiceType.color
+        provider.color
     }
 
     private func providerSubtitle(_ provider: ServiceProvider) -> String {
@@ -106,6 +121,7 @@ struct AccountsView: View {
         case .google: "Tasks & Calendar"
         case .microsoft: "To Do & Calendar"
         case .todoist: "Tasks"
+        case .cozi: "Calendar (read-only)"
         }
     }
 
@@ -126,6 +142,10 @@ struct AccountsView: View {
                 try await MicrosoftAuthManager.shared.connect()
             case .todoist:
                 try await TodoistAuthManager.shared.connect()
+            case .cozi:
+                coziFeedURLInput = ""
+                showingCoziFeedInput = true
+                return // Don't refresh yet — the alert handles connection
             }
             logger.info("\(provider.displayName) connected successfully")
         } catch {
@@ -148,6 +168,10 @@ struct AccountsView: View {
             MicrosoftAuthManager.shared.disconnect()
         case .todoist:
             TodoistAuthManager.shared.disconnect()
+        case .cozi:
+            if let service = eventServices.first(where: { $0.serviceType == .coziCalendar }) as? CoziCalendarService {
+                service.disconnect()
+            }
         }
 
         onReconnect?(provider)
@@ -170,6 +194,8 @@ struct AccountsView: View {
                 connected = await MicrosoftAuthManager.shared.isConnected
             case .todoist:
                 connected = await TodoistAuthManager.shared.isConnected
+            case .cozi:
+                connected = await eventServices.first(where: { $0.serviceType == .coziCalendar })?.isConnected ?? false
             }
             logger.info("  \(provider.displayName): \(connected ? "connected" : "not connected")")
             connectionStatus[provider] = connected
@@ -194,10 +220,30 @@ struct AccountsView: View {
                         await TodoistAuthManager.shared.fetchUserEmail()
                     }
                     providerEmails[provider] = TodoistAuthManager.shared.userEmail ?? "Connected"
+                case .cozi:
+                    providerEmails[provider] = "ICS Feed (read-only)"
                 }
             } else {
                 providerEmails[provider] = nil
             }
         }
+    }
+
+    private func connectCozi(feedURL: String) async {
+        guard !feedURL.isEmpty else { return }
+        logger.info("Connecting Cozi with feed URL...")
+        if let service = eventServices.first(where: { $0.serviceType == .coziCalendar }) as? CoziCalendarService {
+            service.feedURL = feedURL
+            do {
+                try await service.connect()
+                logger.info("Cozi connected successfully")
+            } catch {
+                logger.error("Cozi connection failed: \(error.localizedDescription)")
+                service.feedURL = nil
+                errorMessage = "Cozi: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+        await refreshStatus()
     }
 }

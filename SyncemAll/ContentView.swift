@@ -21,6 +21,7 @@ struct ContentView: View {
             AppleCalendarService(),
             GoogleCalendarService(),
             MicrosoftCalendarService(),
+            CoziCalendarService(),
         ]
         self.taskServices = taskServices
         self.eventServices = eventServices
@@ -82,8 +83,9 @@ struct ContentView: View {
         eventViewModel.session = nil
 
         // Clear persistent links for this provider's services
-        let taskServiceTypes = [provider.taskServiceType]
-        taskViewModel.linkStore?.clearLinks(for: [provider.taskServiceType])
+        if let taskType = provider.taskServiceType {
+            taskViewModel.linkStore?.clearLinks(for: [taskType])
+        }
         if let eventType = provider.eventServiceType {
             eventViewModel.linkStore?.clearLinks(for: [eventType])
         }

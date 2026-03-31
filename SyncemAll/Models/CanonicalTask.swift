@@ -84,6 +84,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
     case appleCalendar = "apple_calendar"
     case googleCalendar = "google_calendar"
     case microsoftCalendar = "microsoft_calendar"
+    case coziCalendar = "cozi_calendar"
 
     var id: String { rawValue }
 
@@ -96,6 +97,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleCalendar: 4
         case .googleCalendar: 5
         case .microsoftCalendar: 6
+        case .coziCalendar: 7
         }
     }
 
@@ -112,6 +114,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleCalendar: "Apple Calendar"
         case .googleCalendar: "Google Calendar"
         case .microsoftCalendar: "Microsoft Calendar"
+        case .coziCalendar: "Cozi Calendar"
         }
     }
 
@@ -124,6 +127,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleCalendar: "Apple"
         case .googleCalendar: "Google"
         case .microsoftCalendar: "Microsoft"
+        case .coziCalendar: "Cozi"
         }
     }
 
@@ -134,6 +138,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .googleTasks, .googleCalendar: nil
         case .microsoftToDo, .microsoftCalendar: "square.grid.2x2.fill"
         case .todoistTasks: nil
+        case .coziCalendar: nil
         }
     }
 
@@ -142,6 +147,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         switch self {
         case .googleTasks, .googleCalendar: "G"
         case .todoistTasks: "T"
+        case .coziCalendar: "C"
         default: nil
         }
     }
@@ -156,6 +162,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleCalendar: false
         case .googleCalendar: false
         case .microsoftCalendar: false
+        case .coziCalendar: false
         }
     }
 
@@ -166,6 +173,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .googleTasks, .googleCalendar: .orange
         case .microsoftToDo, .microsoftCalendar: .green
         case .todoistTasks: .red
+        case .coziCalendar: .teal
         }
     }
 
@@ -176,6 +184,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .googleTasks, .googleCalendar: .google
         case .microsoftToDo, .microsoftCalendar: .microsoft
         case .todoistTasks: .todoist
+        case .coziCalendar: .cozi
         }
     }
 }
@@ -186,6 +195,7 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
     case google
     case microsoft
     case todoist
+    case cozi
 
     var id: String { rawValue }
 
@@ -195,6 +205,7 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .google: "Google"
         case .microsoft: "Microsoft"
         case .todoist: "Todoist"
+        case .cozi: "Cozi"
         }
     }
 
@@ -204,6 +215,7 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .google: nil
         case .microsoft: "square.grid.2x2.fill"
         case .todoist: nil
+        case .cozi: nil
         }
     }
 
@@ -211,16 +223,18 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         switch self {
         case .google: "G"
         case .todoist: "T"
+        case .cozi: "C"
         default: nil
         }
     }
 
-    var taskServiceType: ServiceType {
+    var taskServiceType: ServiceType? {
         switch self {
         case .apple: .appleReminders
         case .google: .googleTasks
         case .microsoft: .microsoftToDo
         case .todoist: .todoistTasks
+        case .cozi: nil
         }
     }
 
@@ -230,10 +244,15 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .google: .googleCalendar
         case .microsoft: .microsoftCalendar
         case .todoist: nil
+        case .cozi: .coziCalendar
         }
     }
 
+    var color: Color {
+        (taskServiceType ?? eventServiceType)?.color ?? .gray
+    }
+
     var serviceTypes: [ServiceType] {
-        [taskServiceType] + (eventServiceType.map { [$0] } ?? [])
+        [taskServiceType, eventServiceType].compactMap { $0 }
     }
 }

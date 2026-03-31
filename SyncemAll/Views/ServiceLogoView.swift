@@ -40,7 +40,7 @@ extension ServiceLogo {
     init(provider: ServiceProvider, size: CGFloat = 12) {
         self.iconSystemName = provider.iconSystemName
         self.letter = provider.providerLogoLetter
-        self.color = provider.taskServiceType.color
+        self.color = provider.color
         self.size = size
     }
 }
