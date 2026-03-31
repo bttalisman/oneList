@@ -15,6 +15,7 @@ struct ContentView: View {
             AppleRemindersService(),
             GoogleTasksService(),
             MicrosoftToDoService(),
+            TodoistService(),
         ]
         let eventServices: [any EventServiceProtocol] = [
             AppleCalendarService(),
@@ -82,8 +83,9 @@ struct ContentView: View {
 
         // Clear persistent links for this provider's services
         let taskServiceTypes = [provider.taskServiceType]
-        let eventServiceTypes = [provider.eventServiceType]
-        taskViewModel.linkStore?.clearLinks(for: taskServiceTypes)
-        eventViewModel.linkStore?.clearLinks(for: eventServiceTypes)
+        taskViewModel.linkStore?.clearLinks(for: [provider.taskServiceType])
+        if let eventType = provider.eventServiceType {
+            eventViewModel.linkStore?.clearLinks(for: [eventType])
+        }
     }
 }

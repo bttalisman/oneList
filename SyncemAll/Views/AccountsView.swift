@@ -105,6 +105,7 @@ struct AccountsView: View {
         case .apple: "Reminders & Calendar"
         case .google: "Tasks & Calendar"
         case .microsoft: "To Do & Calendar"
+        case .todoist: "Tasks"
         }
     }
 
@@ -123,6 +124,8 @@ struct AccountsView: View {
                 try await GoogleAuthManager.shared.connect()
             case .microsoft:
                 try await MicrosoftAuthManager.shared.connect()
+            case .todoist:
+                try await TodoistAuthManager.shared.connect()
             }
             logger.info("\(provider.displayName) connected successfully")
         } catch {
@@ -143,6 +146,8 @@ struct AccountsView: View {
             GoogleAuthManager.shared.disconnect()
         case .microsoft:
             MicrosoftAuthManager.shared.disconnect()
+        case .todoist:
+            TodoistAuthManager.shared.disconnect()
         }
 
         onReconnect?(provider)
@@ -163,6 +168,8 @@ struct AccountsView: View {
                 connected = await GoogleAuthManager.shared.isConnected
             case .microsoft:
                 connected = await MicrosoftAuthManager.shared.isConnected
+            case .todoist:
+                connected = await TodoistAuthManager.shared.isConnected
             }
             logger.info("  \(provider.displayName): \(connected ? "connected" : "not connected")")
             connectionStatus[provider] = connected
@@ -182,6 +189,11 @@ struct AccountsView: View {
                         await MicrosoftAuthManager.shared.fetchUserEmail()
                     }
                     providerEmails[provider] = MicrosoftAuthManager.shared.userEmail ?? "Connected"
+                case .todoist:
+                    if TodoistAuthManager.shared.userEmail == nil {
+                        await TodoistAuthManager.shared.fetchUserEmail()
+                    }
+                    providerEmails[provider] = TodoistAuthManager.shared.userEmail ?? "Connected"
                 }
             } else {
                 providerEmails[provider] = nil

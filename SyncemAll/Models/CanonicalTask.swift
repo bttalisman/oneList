@@ -80,6 +80,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
     case appleReminders = "apple_reminders"
     case googleTasks = "google_tasks"
     case microsoftToDo = "microsoft_todo"
+    case todoistTasks = "todoist_tasks"
     case appleCalendar = "apple_calendar"
     case googleCalendar = "google_calendar"
     case microsoftCalendar = "microsoft_calendar"
@@ -91,9 +92,10 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders: 0
         case .googleTasks: 1
         case .microsoftToDo: 2
-        case .appleCalendar: 3
-        case .googleCalendar: 4
-        case .microsoftCalendar: 5
+        case .todoistTasks: 3
+        case .appleCalendar: 4
+        case .googleCalendar: 5
+        case .microsoftCalendar: 6
         }
     }
 
@@ -106,6 +108,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders: "Apple Reminders"
         case .googleTasks: "Google Tasks"
         case .microsoftToDo: "Microsoft To Do"
+        case .todoistTasks: "Todoist"
         case .appleCalendar: "Apple Calendar"
         case .googleCalendar: "Google Calendar"
         case .microsoftCalendar: "Microsoft Calendar"
@@ -117,6 +120,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders: "Apple"
         case .googleTasks: "Google"
         case .microsoftToDo: "Microsoft"
+        case .todoistTasks: "Todoist"
         case .appleCalendar: "Apple"
         case .googleCalendar: "Google"
         case .microsoftCalendar: "Microsoft"
@@ -129,6 +133,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders, .appleCalendar: "apple.logo"
         case .googleTasks, .googleCalendar: nil
         case .microsoftToDo, .microsoftCalendar: "square.grid.2x2.fill"
+        case .todoistTasks: nil
         }
     }
 
@@ -136,6 +141,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
     var providerLogoLetter: String? {
         switch self {
         case .googleTasks, .googleCalendar: "G"
+        case .todoistTasks: "T"
         default: nil
         }
     }
@@ -146,6 +152,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders: true
         case .googleTasks: false
         case .microsoftToDo: true
+        case .todoistTasks: true
         case .appleCalendar: false
         case .googleCalendar: false
         case .microsoftCalendar: false
@@ -158,6 +165,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders, .appleCalendar: .blue
         case .googleTasks, .googleCalendar: .orange
         case .microsoftToDo, .microsoftCalendar: .green
+        case .todoistTasks: .red
         }
     }
 
@@ -167,6 +175,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Hashable, Comparable, Coda
         case .appleReminders, .appleCalendar: .apple
         case .googleTasks, .googleCalendar: .google
         case .microsoftToDo, .microsoftCalendar: .microsoft
+        case .todoistTasks: .todoist
         }
     }
 }
@@ -176,6 +185,7 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
     case apple
     case google
     case microsoft
+    case todoist
 
     var id: String { rawValue }
 
@@ -184,6 +194,7 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .apple: "Apple"
         case .google: "Google"
         case .microsoft: "Microsoft"
+        case .todoist: "Todoist"
         }
     }
 
@@ -192,12 +203,14 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .apple: "apple.logo"
         case .google: nil
         case .microsoft: "square.grid.2x2.fill"
+        case .todoist: nil
         }
     }
 
     var providerLogoLetter: String? {
         switch self {
         case .google: "G"
+        case .todoist: "T"
         default: nil
         }
     }
@@ -207,18 +220,20 @@ enum ServiceProvider: String, CaseIterable, Identifiable {
         case .apple: .appleReminders
         case .google: .googleTasks
         case .microsoft: .microsoftToDo
+        case .todoist: .todoistTasks
         }
     }
 
-    var eventServiceType: ServiceType {
+    var eventServiceType: ServiceType? {
         switch self {
         case .apple: .appleCalendar
         case .google: .googleCalendar
         case .microsoft: .microsoftCalendar
+        case .todoist: nil
         }
     }
 
     var serviceTypes: [ServiceType] {
-        [taskServiceType, eventServiceType]
+        [taskServiceType] + (eventServiceType.map { [$0] } ?? [])
     }
 }
